@@ -4,18 +4,16 @@ author: "Auteur anonymisé"
 date: '`r format(Sys.Date(), "%d %B %Y")`'
 output:
      # html_document:
-       # toc: true
-       # theme: united
-       
+     # toc: true
+     # theme: united
     word_document:
     # Si export en word (et dans ce cas supprimer les lignes dédiées à l'export html)
-       reference_doc: css/stylesCybergeo.doc
-   bibliography: biblio/Datapaper.bib
-   csl: biblio/cybergeo14032018.csl
-editor_options: 
-  chunk_output_type: console
+       reference_docx: css/stylesCybergeo.docx
+bibliography: biblio/Datapaper.bib
+csl: biblio/cybergeo14032018.csl
+# editor_options: 
+#   chunk_output_type: console
 # Pour désanonymiser, remplacer _Auteur anonymisé_ par _G. Bideau et R. Ysebaert_
-
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, # Afficher ou non le code R dans le document
@@ -35,7 +33,7 @@ library(dplyr) # Pour l'agrégation des données
 ```
 
 # Mots-clés
-La revue a créé un index des mots clés en français et en anglais : https://journals-openedition-org.ezproxy.u-paris.fr/cybergeo/33
+commune, commune nouvelle, fusion de données, bases de données, France
 
 
 # Objectifs généraux
