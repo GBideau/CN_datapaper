@@ -1,0 +1,808 @@
+---
+title: "Communes nouvelles : préparation des données"
+author: "Auteur anonymisé"
+date: '`r format(Sys.Date(), "%d %B %Y")`'
+output:
+     # html_document:
+       # toc: true
+       # theme: united
+       
+    word_document:
+    # Si export en word (et dans ce cas supprimer les lignes dédiées à l'export html)
+       reference_doc: css/stylesCybergeo.doc
+   bibliography: biblio/Datapaper.bib
+   csl: biblio/cybergeo14032018.csl
+editor_options: 
+  chunk_output_type: console
+# Pour désanonymiser, remplacer _Auteur anonymisé_ par _G. Bideau et R. Ysebaert_
+
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, # Afficher ou non le code R dans le document
+                      eval	= TRUE, #	Exécuter ou non le code R à la compilation
+                      include	= TRUE, #	Inclure ou non le code R et ses résultats dans le document
+                      # results	“hide”/“asis”/“markup”/“hold”	Type de résultats renvoyés par le bloc de code
+                      warning = FALSE, # Afficher ou non les avertissements générés par le bloc
+                      message = FALSE, 
+                      cache = TRUE) # Afficher ou non les messages générés par le bloc
+
+# Librairies utiles
+library(sf)
+library(readxl) # Pour import .xls
+library(foreign) # Pour import .dbf
+library(dplyr) # Pour l'agrégation des données
+
+```
+
+# Mots-clés
+La revue a créé un index des mots clés en français et en anglais : https://journals-openedition-org.ezproxy.u-paris.fr/cybergeo/33
+
+
+# Objectifs généraux
+
+L'objet de cette documentation consiste à décrire les données et géométries utilisées dans les analyses ainsi qu'à préparer les fichiers en amont pour faciliter leur usage ultérieur. 
+
+Ce projet utilise les **données INSEE et le fond géographique de référence aux géographies du 1er janvier 2011** (avant toute création de commune nouvelle).
+
+Outre la documentation des sources utilisées, les objectifs de ce document consistent à créer :
+
+- Les géométries de référence au 1er janvier 2011 et au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) avec le même niveau de généralisation cartographique. Ces objets seront appelés `geom2011` et  `geom_new`. 
+- Les géométries des communes fusionnantes devenant des communes nouvelles : `geomfus2011` avant les fusions (au 1er janvier 2011), et `geomCN_new` après les fusions. 
+- Des données statistiques contextuelles pour l'ensemble des communes en 2011 et pour l'année la plus récente (fusion des données 2011). Ces données sont d'ordre socio-économique (emploi, structure par âge, etc.), relatives à des zonages (EPCI d'appartenance, catégories d'aires urbaines), et plus important, permettent de décrire la nature des fusions communales à l'oeuvre. 
+
+La partie 6 présente l'ensemble des données disponibles aux géographies du 1er janvier 2011 (`df2011`) et celles du 1er janvier de la dernière année disponible (`df_new`). 
+
+Une simple jointure entre ces données et les géométries de référence est dès lors nécessaire pour procéder aux analyses. 
+
+
+
+# 1 - Géométries de référence
+
+Le fond géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/documentation/diffusion/telechargement-donnees-libres.html#geofla) est importé, c'est l'objet `geom2011`. Les arrondissements marseillais, lyonnais et parisiens sont agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence qui seront utilisées ultérieurement. Les communes de Corse sont aussi supprimées, étant donné qu'elles ne sont pas concernées par le processus de création de communes nouvelles. Cela améliorera aussi la résolution des représentations cartographiques à venir. 
+
+Ce fond communal est ensuite agrégé au niveau des départements, c'est l'objet `dep`.
+
+On exporte finalement le code communal de ces géométries, qui servira de référence pour les jointures avec les données attributaires à venir. 
+
+```{r geom2011}
+
+# Géométries des communes françaises au 1er janvier 2011 (source : IGN)
+geom2011 <- st_read(dsn = "data-raw/geom/COMMUNE.shp")
+geom2011 <- geom2011[geom2011$CODE_REG != "94",] # Suppression de la Corse
+geom2011 <- st_transform(geom2011, crs = 3035) # Transformation Lambert-93
+
+
+# Suppression et regroupement des arrondissements de Paris, Lyon et Marseille
+arrcom <- read_excel("data-raw/geom/com_arm.xlsx") # Table de passage des arrondissements
+com <- merge(geom2011, arrcom, by = "INSEE_COM", all.y = TRUE) # Géométries des arrondissements
+com <- aggregate(x = com[,"CODGEO"], by = list(com$CODGEO), # On les aggrège
+                   FUN = head, 1)
+
+com$NOM_COMM <- c("MARSEILLE", "LYON", "PARIS")
+com$CODE_DEPT <- c("13","69","75")
+
+geom2011 <- geom2011[!geom2011$INSEE_COM %in% arrcom$INSEE_COM, ] # Suppression des arrondissements
+
+colnames(geom2011)[3] <- "CODGEO"
+geom2011 <- rbind(geom2011[,c("CODGEO","NOM_COMM", "CODE_DEPT")],
+                  com[,c("CODGEO","NOM_COMM", "CODE_DEPT")])
+
+
+# Agrégation en départements
+dep <-  aggregate(x = geom2011[,"CODE_DEPT"], by = list(geom2011$CODE_DEPT), # Agrégation com > dépt
+                   FUN = head, 1)
+
+# Codgeo de référence
+df <- st_set_geometry(geom2011[,c("CODGEO", "CODE_DEPT")], NULL)
+
+# Forcer character
+df$CODGEO <- as.character(df$CODGEO)
+df$CODE_DEPT <- as.character(df$CODE_DEPT)
+
+```
+
+
+
+
+# 2 - Données contextuelles statistiques
+
+## 2.1 - Fichiers sources et indicateurs cibles
+Afin de caractériser les spécificités des communes nouvelles, plusieurs tables statistiques à l'échelon communal sont importées. Ces tables statistiques sont pour la plupart définies en géographie du 1er janvier 2011. 
+
+Voici une table qui résume les indicateurs ciblés pour cette collecte de données - constituant généralement des numérateurs et dénominateurs qui pourront, par la suite, être composés en ratios. 
+
+Ces données sont accessibles sur le site Web de l'INSEE à partir du nom du jeu de données Excel présent dans la table ci-dessous. 
+
+```{r stat_target, echo = FALSE}
+
+target <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ind_target"))
+
+knitr::kable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")], row.names = F, digits = 1)
+
+```
+
+
+## 2.2 - Préparation des données statistiques
+
+Le code ci-dessous importe les indicateurs contenus dans ces tables de référence, réalise une jointure avec les codes communaux 2011 et filtre les indicateurs pour ne conserver que les indicateurs d'intérêt. Le tout est inclu dans un objet `df2011` qui constituera l'objet incluant les données contextuelles d'intérêt pour cette étude, aux géographies du 1er janvier 2011. 
+
+```{r data_import}
+
+# Importer les tableaux de données d'intérêt
+datatmp1 <- data.frame(read_excel("data-raw/stats_insee/base-cc-emploi-pop-active-2009.xls", sheet = "COM_2009", skip = 5))
+datatmp2 <- data.frame(read_excel("data-raw/stats_insee/base-cc-evol-struct-pop-2009.xls", sheet = "COM_2009", skip = 5))
+datatmp3 <- data.frame(read_excel("data-raw/stats_insee/BTX_FM_DTR_2009.xls", sheet = "TOTAL", skip = 5))
+datatmp4 <- data.frame(read_excel("data-raw/stats_insee/Potentiel_financier_2011.xls", sheet = "Rapport1", skip = 2))
+datatmp5 <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-11.xls", sheet = "Liste_COM", skip = 5))
+datatmp6 <- read.csv("data-raw/stats_insee/city_all.csv", sep = ",", stringsAsFactors = FALSE, fileEncoding = "UTF8")
+datatmp6 <- subset(datatmp6, datatmp6$année == "2011")
+
+# Nécessité d'une procédure un peu plus longue pour les données concernant les revenus
+sheet_names <- excel_sheets("data-raw/stats_insee/Ircom_2011_revenus2010.xls") # On liste les feuilles
+datatmp7 <- data.frame()
+for (i in 1:length(sheet_names)){
+  feuille <- sheet_names[i] # récupère le nom de la feuille
+  IRFeuille <- data.frame(read_excel("data-raw/stats_insee/Ircom_2011_revenus2010.xls", sheet = feuille, skip = 20))
+  datatmp7 <- rbind(datatmp7, IRFeuille, stringsAsFactors = FALSE)
+  rm(feuille, IRFeuille) # suppression des objet intermédiaires
+}
+# Renommer variables
+colnames(datatmp7)[10] <- "Traitements.et.salaires_Nbr.foyers"
+colnames(datatmp7)[11] <- "Traitements.et.salaires_Montant"
+colnames(datatmp7)[12] <- "Retraites.et.pensions_Nbr.foyers"
+colnames(datatmp7)[13] <- "Retraites.et.pensions_Montant"
+datatmp7 <- subset(datatmp7, datatmp7$Revenu.fiscal.de.référence.par.tranche..en.euros. == "Total") # Sélection des seules variables totales
+datatmp7[, c(5:length(datatmp7))]<- lapply(datatmp7[, c(5:length(datatmp7))], as.numeric) # Variables en numériques
+# Création d'un CODGEO
+datatmp7$CODGEO <- substr(datatmp7$DÉP, 1, 2)
+datatmp7$CODGEO <- paste(datatmp7$CODGEO, datatmp7$Commune, sep = "")
+
+# Jointure avec le champ CODGEO 2011 de référence (issu des géométries)
+df <- merge(df, datatmp1, by = "CODGEO", all.x  = TRUE)
+df <- merge(df, datatmp2[,c(1, 5:length(datatmp2))], by = "CODGEO", all.x  = TRUE)
+df <- merge(df, datatmp3[,c(1, 3:length(datatmp3))], by = "CODGEO", all.x  = TRUE)
+df <- merge(df, datatmp4, by.x = "CODGEO", by.y = "Code.INSEE", all.x  = TRUE)
+df <- merge(df, datatmp5[,c(1, 5:length(datatmp5))], by = "CODGEO", all.x  = TRUE)
+df <- merge(df, datatmp6[,c(5, 12)], by.x = "CODGEO", by.y = "cog..code.officiel.géographique.", all.x = TRUE)
+df <- merge(df, datatmp7[,c(5:length(datatmp7))], by = "CODGEO", all.x = TRUE)
+
+# Ne conserver que les indicateurs d'intérêt 
+selec <- target$INSEE_CODE
+df2011 <- df[,selec]
+
+# Renommer le code des variables
+colnames(df2011) <- target$recoding
+
+```
+
+Les catégories du zonage en aires urbaines sont aussi regroupées. 
+
+```{r zau_categ}
+# Pour créer des catégories plus vastes à partir des 
+# Utilisation du ZAU pour cibler les communes appartenant à un petit pôle (unité urbaine et couronne)
+
+# Utilisation du ZAU pour cibler les communes du rural profond
+df2011$ZAU_POL [df2011$CATAEU2010 %in% c("221", "222")] <- "OUI"
+
+# Utilisation du ZAU pour cibler les communes du rural profond
+df2011$ZAU_RUR [df2011$CATAEU2010 %in% c("300", "400")] <- "OUI"
+
+# Utilisation du ZAU pour cibler les communes du rural profond + couronnes petits pôles : Marges Sans Pôles
+df2011$ZAU_MAR_SP [df2011$CATAEU2010 %in% c("222", "300", "400")] <- "OUI"
+
+# Utilisation du ZAU pour cibler les communes du rural profond + petits pôles et couronnes
+df2011$ZAU_MAR [df2011$CATAEU2010 %in% c("221", "222", "300", "400")] <- "OUI"
+
+# Utilisation du ZAU pour cibler les communes périurbaines et les autres
+df2011$ZAU_PERI [df2011$CATAEU2010 %in% c("112", "120")] <- "OUI"
+
+# Utilisation du ZAU pour cibler les communes des Grandes aires urbaines, des aires urbaines et les autres
+df2011$ZAU_AU [df2011$CATAEU2010 %in% c("111", "112", "120")] <- "GrdAirUrb"
+df2011$ZAU_AU [df2011$CATAEU2010 %in% c("211", "212", "221", "222")] <- "AirUrb"
+df2011$ZAU_AU [df2011$CATAEU2010 %in% c("300", "400")] <- "Autres"
+
+# Tout ce qui ne fait pas partie des catégories = NON 
+selecV <- c("ZAU_POL", "ZAU_RUR", "ZAU_MAR_SP", "ZAU_MAR", "ZAU_PERI", "ZAU_AU")
+df2011[selecV][is.na(df2011[selecV])] <- "NON"
+
+# # Transformation en facteur des catégories des aires urbaines
+# df2011$CATAEU2010 <- as.factor(df2011$CATAEU2010)
+# df2011$CODGEO <- as.character(df2011$CODGEO)
+
+```
+
+
+
+# 3 - Fusions communales et communes nouvelles
+
+La [table de passage communale](https://www.insee.fr/fr/information/2028028) produite par l'INSEE est importée. Elle restitue l'ensemble des changements qui ont touché des communes en France depuis 2003. Cette table ne concerne pas exclusivement les communes nouvelles. 
+
+Pour cette raison, on associe à ce fichier d'origine d'autres tables mises à disposition par l'INSEE : le listing des communes nouvelles ( [un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968)). Pour récupérer les créations de communes nouvelles antérieures au 2 janvier 2015, un fichier est créé à partir de l'interface d'[historique des communes](https://www.insee.fr/fr/metadonnees/historique-commune?taille=100&debut=0&modification=MG&p-debut=2003&p-fin=2014) de l'INSEE. 
+NB : Les tables de passages de l'INSEE sont du 2 janvier de l'année indiquée jusqu'au 1er janvier de l'année suivante, inclue (par exemple, la table de passage "2015") comprend toutes les fusions du 2 janvier 2015 au 1er janvier 2016.
+Voici le récapitulatif des informations mises à disposition par l'INSEE : 
+
+```{r changes, echo = FALSE}
+
+tab <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "tab_passage"))
+
+knitr::kable(tab, row.names = F)
+
+```
+
+
+On regroupe toutes ces informations au sein d'un seul dataframe. Si la date d'effet (Date2) est manquante au niveau des données fournies par l'INSEE, on applique la valeur au 1er janvier de l'année suivante à ce champ.  
+
+À noter que pour mettre à jour la table de passage avec d'éventuelles fusions ultérieures, il suffit de rajouter les fichier les plus récents.
+Travail pour l'intégration des données publiées chaque année :
+- Intégration nouvelle table fusions 2021
+- intégration nouvelle table évolutions 2003-2021
+- rechercher la dernière année connue pour la modifier dans le texte.
+
+
+À noter également que les dates des fichiers Excel fournis par l'INSEE ne sont pas formatés de façon identique. Au format texte jusqu'à 2017, au format date à partir de 2018. Nous avons préalablement converti les champs date au format texte pour l'ensemble des fichiers. Cela signifie qu'en cas de mise à jour des données il faudra de nouveau convertir les dates au format texte, ou inversement, tout transformer au format date depuis le début dans les fichiers Excel. 
+
+
+
+
+# 3.1 - Identification des communes fusionnantes
+
+On commence par identifier les communes fusionnantes à partir de la table de passage globale fournie par l'INSEE depuis la géométrie de 2003.
+
+```{r changes_manip1}
+
+
+# comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des fusions", skip = 5))
+comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des fusions", skip = 5))
+
+# Pour éviter les doublons dans la table INSEE
+comFus <- aggregate(x = comFus, by = list(comFus$COM_INI), 
+                   FUN = head, 1) # On garde le premier élément (car df trié par date)
+
+# Renommer avec la commune fusionnée la plus récente
+comFus <- comFus[order(comFus$annee_modif, decreasing = TRUE),]
+comFus$LIB_COM_FIN <- ave(comFus$LIB_COM_FIN, comFus$COM_FIN, FUN = function(x) x[1])
+comFus <- comFus[,c(2:length(comFus))]
+
+# Identification des communes fusionnantes dans la table d'entrée
+df2011 <- merge(df2011, comFus[,c("COM_INI", "annee_modif")], by.x = "CODGEO",
+                by.y = "COM_INI", all.x = TRUE)
+df2011$annee_modif[!is.na(df2011$annee_modif)] <- "OUI"
+df2011$annee_modif[is.na(df2011$annee_modif)] <- "NON"
+colnames(df2011)[length(df2011)] <- "FUSION"
+
+```
+
+# 3.2 - Identification et caractérisation des communes nouvelles
+
+Il s'agit ici de sélectionner, dans chaque table de passage fournie par l'INSEE, les communes fusionnantes et les communes nouvelles créées.
+Certains cas particuliers demandent un traitement spécifique :
+- Bettoncourt-le-Haut a fusionné en 1972 avec Épizon, sous le statut de commune-associée. Au 1er janvier 2013, avec la création de la commune-nouvelle d'Épizon, la commune de Bettoncourt-le-Haut devient commune déléguée. Comme on ne dispose pas des données 2011 pour Bettoncourt-le-Haut, on préfère ignorer cette commune en considérant que la commune nouvelle d'Épizon est le résultat de la fusion des seules Épizon et Pautaines-Augeville. Source : https://www.insee.fr/fr/metadonnees/cog/commune/COM52046-bettoncourt-le-haut.
+- On doit également traiter à la main le cas de la commune de L'Oudon, qui a changé de code communal : issue de la fusion-association de dix communes en 1973, avait jusqu'en 1990 le code de 14472. Du fait d'un transfert de chef-lieu, le code a été modifié en 14697. Après un nouveau transfert de chef-lieu en  2014,  l'INSEE décide en  2016  de  ré-attribuer  le  code de  14472. Cette commune a fusionné au 1er janvier 2017 au sein de la commune nouvelle de Saint-Pierre-en-Auge. Pour éviter les problèmes d'associations entre les données, nous avons laissé l'ancien code 14697, qui est celui utilisé dans les données INSEE que nous utilisons (millésime 2011).
+
+```{r changes_manip2}
+
+# Import tables de référence INSEE
+tmp <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2012_2014.xls", 
+                              sheet = "Communes_nouvelles_2012_2014"))
+# Traitement du cas particulier de Bettoncourt-le-Haut et Épizon
+tmp <- subset (tmp, DepComA != "52046")
+
+tmp1 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2015.xls", 
+                              sheet = "Communes nouvelles 2015"))
+tmp1$Date2[is.na(tmp1$Date2)] <- "01/01/2016"
+
+tmp2 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2016.xls", 
+                              sheet = "Communes nouvelles 2016"))
+tmp2$Date2[is.na(tmp2$Date2)] <- "01/01/2017"
+
+# Traitement du cas particulier de la commune de L'Oudon
+# tmp2$DepComA[tmp2$NomCA == "Oudon (L')"] <- "14697"
+tmp2$DepComA[tmp2$DepComA == "14472"] <- "14697"
+
+tmp3 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2017.xls", 
+                              sheet = "Communes nouvelles 2017"))
+tmp3$Date2[is.na(tmp3$Date2)] <- "01/01/2018"
+
+tmp4 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2018.xls", 
+                              sheet = "Communes_nouvelles_2018"))
+tmp4$Date2[is.na(tmp4$Date2)] <- "01/01/2019"
+
+tmp5 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2019.xls", 
+                              sheet = "Communes_nouvelles_2019"))
+
+tmp6 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2020.xlsx", 
+                              sheet = "Communes_nouvelles_2020"))
+tmp6$Date1 <- format(as.Date(tmp6$Date1, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
+tmp6$Date2 <- format(as.Date(tmp6$Date2, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
+
+# Regroupement des colonnes identiques des différents dataframe
+comNew <- data.frame()
+list_df <- list(tmp, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6)
+
+for(item in list_df){     
+  items <- item[, names(tmp)] # La référence sont les noms de colonne du premier fichier
+  comNew <- rbind(comNew, items)    
+
+}
+
+# Supprimer les erreurs de saisie
+comNew <- subset(comNew, comNew$DepComN != "NA")
+
+# Reformatage année fusion
+comNew$FusAn <- as.Date(comNew$Date2, tryFormats = "%d/%m/%Y")
+
+# Découpage en phases temporelles de fusion
+comNew$FusPhas <- cut(comNew$FusAn, 
+                        breaks = as.Date(c("2011-1-1", "2015-1-2", "2016-1-2",
+                                           "2017-1-2","2018-1-2", "2020-1-2","2021-1-2")), 
+                        labels = c("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"))
+
+# Pour fusions successives et à code DepComA identique, ne conserver que l'élément le plus ancien
+comNew <- aggregate(x = comNew, by = list(comNew$DepComA),  # on évite les doublons
+                   FUN = head, 1) # On ne garde que le premier élément (comNew trié par ordre chronologique)
+
+# Prise en compte du dernier nom de commune nouvelle
+comNew <- comNew[order(comNew$FusAn, decreasing = TRUE),]
+comNew$NomCN <- ave(comNew$NomCN, comNew$DepComN, FUN = function(x) x[1])
+comNew <- comNew[,c(2:length(comNew))] # Ne garder que les colonnes utiles
+
+# Jointure avec le fichier d'origine
+df2011 <- merge(df2011, comNew[,c("DepComA","ChefLieu","ComDLG", "FusAn","FusPhas")],
+                by.x = "CODGEO", by.y = "DepComA", all.x = TRUE, all.y = TRUE)
+
+# Identification communes nouvelles
+df2011$COM_NOUV[!is.na(df2011$FusPhas)] <- "OUI"
+df2011$COM_NOUV[is.na(df2011$FusPhas)] <- "NON"
+df2011$FusPhas <- as.character(df2011$FusPhas)
+
+```
+
+# 3.3 - Gestion des scissions communales
+
+Dans la table de passage, des scissions communales sont présentes. On fait en sorte ici que ces dernières ne soient pas considérées comme des fusions ou des communes nouvelles.
+
+Il faut, là encore, noter un cas particulier : en 2012, la commune de Robert-Magny-Laneuville-à-Rémy (52427) se scinde en Robert-Magny (52427) et Laneuville-à-Rémy (52266). Au 1er janvier 2016, Robert-Magny fusionne avec Montier-en-Der (52331) pour former La Porte du Der (52331). Comme on ne dispose pas des données 2011 pour Laneuville-à-Rémy, on préfère ignorer cette scission. Source : https://www.insee.fr/fr/metadonnees/cog/commune/COM52427-robert-magny.
+
+```{r changes_manip3}
+
+# Tout ce qui est scission n'est pas considéré comme commune nouvelle ou fusion
+# comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des scissions", skip = 5))
+comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des scissions", skip = 5))
+
+
+# Cas particulier de la commune de Robert-Magny-Laneuville-à-Rémy (52427).
+comSci <- subset(comSci, COM_INI != "52427")
+comSci <- as.vector(unique(comSci$COM_FIN))
+
+df2011$FUSION [df2011$CODGEO %in% comSci] <- "NON"
+df2011$COM_NOUV [df2011$CODGEO %in% comSci] <- "NON"
+df2011$ChefLieu [df2011$CODGEO %in% comSci] <- NA
+df2011$ComDLG [df2011$CODGEO %in% comSci] <- NA
+df2011$FusAn [df2011$CODGEO %in% comSci] <- NA
+df2011$FusPhas [df2011$CODGEO %in% comSci] <- NA
+
+df2011$FusAn <- as.character(df2011$FusAn)
+
+```
+
+
+
+# 4 - Agrégation des indicateurs en version la plus récente et calcul des ratios
+
+Les données d'intérêt sont fusionnées dans les géographies du 1er janvier de l'année la plus récente grâce à la table de passage 2003-20XX fournie par l'INSEE et la fonction `comix` qui permet d'agréger les données selon leurs spécificités statistiques (données textuelles, de stock, de ratio)
+
+```{r comix, echo = FALSE}
+
+comix <- function(x, xid, app, app.init, app.target, var, var.type, w = NULL, na.rm = FALSE) {
+  
+  # Supprimer les géométries s'il y en a 
+  if (methods::is(x, "sf")){
+    x <- st_set_geometry(x, NULL)
+    }
+  
+  # Import table d'appartenance des fusions territoriales
+  app <- app
+  
+  # Jointure table d'entrée - table des fusions territoriales
+  x <- merge(x, app[,c(app.init, app.target)], by.x = xid, by.y = app.init, all.x = TRUE)
+  
+
+  # Unités non concernées par modifications
+  tmp <- aggregate(x[,app.target], by = list(app.target = x[,app.target]), FUN = length)
+  tmp <- tmp[tmp$x <= 1,] 
+  selecUnit <- tmp$app.target
+  intact <- x[x[,app.target] %in% selecUnit, ]
+  intact <- intact[, c(app.target, var)] 
+
+  # Unités concernées par une modification
+  modif <- x[!x[,app.target]%in% selecUnit, ]
+  modif <- modif[, c(app.target, var, w)]
+  
+  # Gestion des types de variables déclarées 
+  tmp <- data.frame(var, var.type, row.names = var)
+  txt <- row.names(tmp[tmp$var.type == "text",])
+  stock <-  row.names(tmp[tmp$var.type == "stock",])
+  ratio <- row.names(tmp[tmp$var.type == "ratio",])
+  
+  # Si variables de type caractère > concaténation des modalités
+  if(length(txt > 0)){
+    modif.t <- modif[,c(app.target, txt)]
+    
+    modif.t <- aggregate(modif.t[, -1],
+                         by = list(app.target = modif.t[,app.target]),
+                         FUN = function(x) {paste0(unique(x), collapse = "-")})
+    names(modif.t) <- c(app.target, txt)
+    }
+
+  
+  # Si variables de type stock > somme des valeurs
+  if(length(stock > 0)){
+    
+    modif.s <- modif[,c(app.target, stock)]
+    modif.s <- aggregate(modif.s[, -1],
+                         by = list(app.target = modif.s[,app.target]),
+                         FUN = sum, na.rm = na.rm)
+    names(modif.s) <- c(app.target, stock)
+    }
+  
+
+  # Si variables de type ratio > moyenne simple ou pondérée 
+  ## Si pas de variable de pondération
+  if(length(ratio > 0)){  
+    if(is.null(w)){
+      modif.r <- modif[,c(app.target, ratio)]
+      modif.r <- aggregate(modif.r[, -1],
+                           by = list(CODGEO_new = modif.r$CODGEO_new),
+                           FUN = mean, na.rm = na.rm)
+      }
+    
+    ## Si pondération... 
+    # Commentaire : Avec dplyr(!), pas très sexy mais fonctionne. A essayé 36 méthodes
+    # non concluantes (cf sous la fonction)
+    else{
+      modif.r <- modif[,c(app.target, ratio, w)]
+      names(modif.r)[which(names(modif.r) == w)] <- "weight"
+      names(modif.r)[which(names(modif.r) == app.target)]  <- "app.target"
+      names(modif.r)[which(names(modif.r) %in% ratio)]  <- paste0("ratio",names(modif.r[ratio]))
+      
+      modif.r <- modif.r %>%                   
+        group_by_at(vars(app.target)) %>% 
+        summarise_at(vars(starts_with('ratio')), list(~weighted.mean(., weight, na.rm = na.rm)))  
+        modif.r <- as.data.frame(modif.r)
+        }
+    
+    names(modif.r) <- c(app.target, ratio)
+  }
+  
+  # Union des 3 types de variables - 8 cas de figure
+  # Commentaire : pas trouvé la solution du type if(exists("x")), cbind(x)
+  if(exists("modif.t") == FALSE & exists("modif.s") == FALSE & exists("modif.r") == FALSE ){
+    stop("Define at least one var combined to one var.type", call. = FALSE)
+  }
+  
+  if(exists("modif.t") == TRUE & exists("modif.s") == TRUE & exists("modif.r") == TRUE ){
+    modif <- cbind(modif.t, modif.s, modif.r) 
+  }
+  
+  if(exists("modif.t") == FALSE & exists("modif.s") == TRUE & exists("modif.r") == TRUE ){
+    modif <- cbind(modif.s, modif.r) 
+  }
+  
+  if(exists("modif.t") == TRUE & exists("modif.s") == FALSE & exists("modif.r") == TRUE){
+    modif <- cbind(modif.t, modif.r) 
+  }
+  
+  if(exists("modif.t") == TRUE & exists("modif.s") == TRUE & exists("modif.r") == FALSE){
+    modif <- cbind(modif.t, modif.s) 
+  }
+  
+  if(exists("modif.t") == TRUE & exists("modif.s") == FALSE & exists("modif.r") == FALSE){
+    modif <- modif.t
+  }
+  
+  if(exists("modif.t") == FALSE & exists("modif.s") == TRUE & exists("modif.r") == FALSE){
+    modif <- modif.s
+  }
+  
+  if(exists("modif.t") == FALSE & exists("modif.s") == FALSE & exists("modif.r") == TRUE){
+    modif <- modif.r
+  }
+  
+
+
+  # Liaison avec les unités territoriales inchangées
+  x <- rbind(intact, modif[,names(intact)])
+  
+  return(x)
+  }
+```
+
+
+On importe préalablement les zonages de référence pour l'année la plus récente et on calcule les typologies dérivées du zonage en aires urbaines comme plus haut. Les variables de stock et les informations relatives aux communes nouvelles sont ensuite agrégées puis jointe à cette table de référence. Les codes INSEE aux géographies du 1er janvier de l'année la plus récente sont aussi joints à la table de données du 1er janvier 2011. 
+
+```{r data_aggreg}
+
+# Import de la table de zonage de l'année la plus récente
+# df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-20.xlsx",  sheet = "COM", skip = 5))
+df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-21.xlsx",  sheet = "COM", skip = 5))
+
+df_new <- df_new[,c("CODGEO","LIBGEO","DEP","REG")] # NB : certains éléments ne sont plus dans les données à partir de 2021 : "CATAEU2010","AU2010", "EPCI"... Ont donc été supprimées. Il faudra songer à intégrer le nouveau zonage lorsqu'il sera disponible. Ci-dessous, commenté, le code qui servait à l'intégration des données jusqu'en 2020
+
+# df_new <- df_new[,c("CODGEO","LIBGEO","DEP","REG","CATAEU2010","AU2010","EPCI")]
+# colnames(df_new)[1:3] <- c("CODGEO_new","LIBGEO_new","CODE_DEPT") 
+# # Création catégories
+# df_new$ZAU_POL [df_new$CATAEU2010 %in% c("221", "222")] <- "OUI"
+# df_new$ZAU_RUR [df_new$CATAEU2010 %in% c("300", "400")] <- "OUI"
+# df_new$ZAU_MAR_SP [df_new$CATAEU2010 %in% c("222", "300", "400")] <- "OUI"
+# df_new$ZAU_MAR [df_new$CATAEU2010 %in% c("221", "222", "300", "400")] <- "OUI"
+# df_new$ZAU_PERI [df_new$CATAEU2010 %in% c("112", "120")] <- "OUI"
+# df_new$ZAU_AU [df_new$CATAEU2010 %in% c("111", "112", "120")] <- "GrdAirUrb"
+# df_new$ZAU_AU [df_new$CATAEU2010 %in% c("211", "212", "221", "222")] <- "AirUrb"
+# df_new$ZAU_AU [df_new$CATAEU2010 %in% c("300", "400")] <- "Autres"
+# # Tout ce qui ne fait pas partie des catégories = NON 
+# selecV <- c("ZAU_POL", "ZAU_RUR", "ZAU_MAR_SP", "ZAU_MAR", "ZAU_PERI", "ZAU_AU")
+# df_new[selecV][is.na(df_new[selecV])] <- "NON"
+
+
+colnames(df_new)[1:3] <- c("CODGEO_new","LIBGEO_new","CODE_DEPT") 
+
+
+
+# Agrégation des données de 2011 vers l'année la plus récente (stock + texte)
+# Import de la table de passage 
+# modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
+modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
+colnames(modif) <- c("CODGEO_INI", "CODGEO_new", "LIBGEO_new" )
+
+# Agrégation
+tmp <- comix(x = df2011, xid = "CODGEO", app = modif,
+                app.init = "CODGEO_INI", app.target = "CODGEO_new", 
+                var = c("CODGEO", colnames(df2011)[c(8:40)], "FUSION", "FusAn",
+                        "FusPhas", "COM_NOUV", "CATAEU2010"),
+                var.type = c("text", rep("stock",33), rep("text",5)))
+
+# Gestion des "OUI-NON" > transformé en "OUI"
+selec <- c("FUSION", "COM_NOUV")
+tmp[,selec][tmp[,selec] == "OUI-NON"] <- "OUI"
+tmp[,selec][tmp[,selec] == "NON-OUI"] <- "OUI"
+
+# Jointure avec le fichier de référence le plus récent
+df_new <- merge(df_new, tmp, by.x = "CODGEO_new", by.y = "CODGEO_new",
+                all.x = TRUE)
+
+# Suppression des territoires corses, des DOM et des communes associées (pas de geom)
+out <- c("94","01","02","03","04","06")
+df_new <- df_new[!df_new$REG %in% out,] 
+df_new <- df_new[!is.na(df_new$CODGEO),]
+
+
+# Jointure des codes géographiques récents pour df2011
+df2011 <- merge(df2011, modif, by.x = "CODGEO", by.y = "CODGEO_INI", all.x = TRUE)
+
+# Gestion des chefs-lieux dans les fusions successives
+# Suppression des chefs lieux des communes ayant fusionné a posteriori
+df2011$ChefLieu <- ifelse(df2011$CODGEO == df2011$CODGEO_new, "O", "N")
+
+# Transformation en factor d'un champ
+#df_new$CATAEU2010 <- as.factor(df_new$CATAEU2010) # Ne sont plus dans les données à partir de 2021
+df2011$CATAEU2010 <- as.factor(df2011$CATAEU2010)
+
+```
+
+
+Pour les jeux de données aux géographies 2011 et pour l'année la plus récente, des ratios d'intérêt sont compilés à partir des stocks préalablement chargés et agrégés. Ces ratios sont définis sur les bases de ce qui est renseigné dans la feuille "ratios" du fichier meta.xls 
+
+```{r ratios}
+
+ratio <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ratios"))
+
+# Compilation des ratios pour les communes 2011
+for (i in 1:nrow(ratio)){
+  df2011[paste0(ratio[i,"CODE"])] <- df2011[[ratio[i, "Numerator_Code"]]] / 
+    df2011[[ratio[i, "Denominator_Code"]]] * ratio[i,"Coeff"]
+}
+
+# Compilation des ratios pour les communes à la dernière géométrie connue
+for (i in 1:nrow(ratio)){
+  df_new[paste0(ratio[i,"CODE"])] <- df_new[[ratio[i, "Numerator_Code"]]] / 
+    df_new[[ratio[i, "Denominator_Code"]]] * ratio[i,"Coeff"]
+}
+
+```
+
+
+# 5 - Résumé des indicateurs disponibles par fichier de données de référence
+
+Deux jeux de données ont ainsi été produits :
+
+- Le premier, `df2011`, contient l'ensemble des données communales françaises désirées aux géographies du 1er janvier 2011. 
+- Le second, `df_new`, contient les informations aux géographies du 1er janvier de la dernière année pour laquelle les données ont été publiées par l'INSEE. Les données 2011 ont été regroupées en fonction du fichier des fusions délivré par l'INSEE et la fonction `comix`. 
+
+Voici les codes respectifs que ces fichiers contiennent, ainsi qu'un descriptif de leur contenu. 
+
+```{r meta_df2011, echo = FALSE}
+
+codes <- names(df2011)
+nums <- target$DESCRIPTION
+
+zau <- c("Petit pôle et couronne de petits pôles (catégories 221 et 222 du zonage en aires urbaines (OUI/NON)",
+         "Communes rurales et autres (catégories 300 et 400 du zonage en aires urbaines (OUI/NON)",
+         "Marges sans pôles (catégories 222, 300 ey 400 du zonage en aires urbaines (OUI/NON)",
+         "Rural profond + petits pôles et couronnes (catégories 221, 222, 300 et 400 du zonage en aires urbaines (OUI/NON)",
+         "Périurbain de grands pôles (catégories 112 et 120 du zonage en aires urbaines (OUI/NON)",
+         "Typologie regroupée basées sur les aires urbaines : GrdAirUrb (catégories 111, 112, 120), AirUrb (211, 212, 221, 222) et Autres (300, 400)")
+change <- c("Code INSEE, découpage géographique le plus récent",
+            "Nom de la commune, découpage géographique le plus récent",
+            "Est-ce que la commune a fusionné entre 2011 et aujourd'hui (OUI/NON)",
+            "Commune nouvelle : Statut de commune chef-lieu (O=OUI, N=NON)",
+            "Commune nouvelle : Statut de Commune déléguée (O=OUI, N=NON)",
+            "Date d'effet de la création de commune nouvelle",
+            "Phase dans le processus de fusion (phase 1 = 2011-2015, 2 = 2015-2016, 3 = 2016-2017, 4 = 2017-2018, 5 = 2018-2020, 6 = 2020-2021",
+            "Est que la commune est devenue une commune nouvelle (OUI/NON)")
+
+rates <- ratio$DESCRIPTION
+
+label <- c(nums, zau, change, rates)
+tab <- data.frame(codes, label)
+
+knitr::kable(tab, row.names = F)
+  
+```
+
+Il s'agit exactement des mêmes codes utilisés pour `df_new`, à la différence que l'identifiant géographique des communes correspond à CODGEO_new et son libellé LIBGEO_new. Dans `df_new`, CODGEO correspond à la concaténation des communes constituant la commune fusionnée ou la commune nouvelle. Les variables dédiées aux chefs-lieux et aux communes déléguées (codes ChefLieu et ComDLG) ne sont pas inclues dans le jeu de données aux géographies récentes, car non adaptées à ce niveau de granularité géographique. 
+
+Les jeux de données de référence sont exportés dans le dossier `data` au format RData. 
+
+```{r export_data}
+
+try(save(df2011, df_new, file = "data/refdata.Rdata"))
+
+```
+
+# 6 - Agrégation des dernières géométries connues (2021), extraction des communes nouvelles et export des résultats
+
+On agrège à présent les géométries aux géographies du 1er janvier 2011 vers les géométries les plus récentes pour lesquelles des données ont été publiées par l'INSEE (1er janvier 2021). 
+Les communes nouvelles sont ensuite extraites de ces géométries de référence. 
+
+```{r geom_aggreg}
+
+# Communes françaises au 1er janvier 2011
+geom2011 <- geom2011[,c("CODGEO")]
+
+# Communes françaises à la géométrie la plus récente
+geom_new <- merge(geom2011, df2011[,c("CODGEO","CODGEO_new")])
+geom_new <- aggregate(x = geom_new[,"CODGEO_new"], 
+                      by = list(geom_new$CODGEO_new), FUN = head, 1)
+geom_new <- geom_new[,c("CODGEO_new")]
+
+
+# Communes nouvelles avant et après fusion
+geomfus2011 <- merge(geom2011, df2011[,c("CODGEO", "COM_NOUV")])
+geomCN_new <- merge(geom_new, df_new[,c("CODGEO_new", "COM_NOUV")])
+
+geomfus2011 <- geomfus2011[geomfus2011$COM_NOUV == "OUI",]
+geomfus2011 <- geomfus2011[,c("CODGEO")]
+geomCN_new <- geomCN_new[geomCN_new$COM_NOUV == "OUI",]
+geomCN_new <- geomCN_new[,c("CODGEO_new")]
+
+```
+
+5 couches géographiques sont exportées dans le fichier `geom.gpkg` :
+
+- Les géométries communales au 1er janvier 2011 (`geom2011`).
+- Les géométries communales au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) (`geom_new`).
+- Les géométries des communes concernées par une création de communes nouvelles, avant fusion (`geomfus2011`).
+- Les géométries des communes nouvelles, après fusion (`geomCN_new`).
+- Une couche d'habillage pour les représentations cartographiques : les départements (`dep`).
+
+Ces géométries de référence sont exportées dans le dossier "data". 
+
+```{r geom_export}
+# Export des fichiers consolidés
+st_write(obj = geom2011, dsn = "data/geom.gpkg", layer = "geom2011", delete_layer = TRUE, quiet = TRUE)
+st_write(obj = geom_new, dsn = "data/geom.gpkg", layer = "geom_new", delete_layer = TRUE, quiet = TRUE)
+st_write(obj = geomfus2011, dsn = "data/geom.gpkg", layer = "geomfus2011", delete_layer = TRUE, quiet = TRUE)
+st_write(obj = geomCN_new, dsn = "data/geom.gpkg", layer = "geomCN_new", delete_layer = TRUE, quiet = TRUE)
+st_write(obj = dep, dsn = "data/geom.gpkg", layer = "dep", 
+         delete_layer = TRUE, quiet = TRUE)
+```
+
+
+
+# [Annexes] Données additionnelles non intégrées au flux de préparation des données
+
+Si on ne conserve pas ces informations, il faudra les supprimer du dossier raw-data pour éviter d'avoir à stocker des informations inutiles. 
+
+
+
+## Appartenances à un syndicat intercommunal
+
+A voir si on le place dans la préparation des données > créer un nouvel objet "data_epci". 
+
+
+La carte des communes nouvelles ne ressemble pas à beaucoup de cartes connues (densités, zonages urbains, caractéristiques socio-économiques, profils démographiques...).
+On peut néanmoins voir une similitude avec la carte montrant la baisse du nombre de syndicats intercommunaux entre 2010 et 2019 (carte 2 p. 3 du *Bulletin d'information statistique de la DGCL*, n°134, avril 2019 : https://www.collectivites-locales.gouv.fr/files/files/dgcl_v2/DESL/bis_134_interco_2019.pdf)
+Les données concernant les appartenances aux intercommunalités sont archivées ici : https://www.banatic.interieur.gouv.fr/V5/archivage/archivage.php.
+Nous avons utilisé les données au 1er janvier 2011, disponibles ici : https://www.banatic.interieur.gouv.fr/V5/fichiers-en-telechargement/fichiers-telech.php?arch=01/01/2011
+Pour accéder aux appartenances à toutes les structures intercommunales, il faut télécharger les fichiers région par région, ce qui a été fait dans le dossier data-raw/Groupements_intercommunaux_2011.
+[Edit]
+Après test de chi-2, on peut rejeter l'hypothèse d'indépendance des variables "Fusion" et "Dernière intercommunalité", mais sans que les Syndicats intercommunaux sans fiscalité propre soient extrêmement plus représentés chez les communes fusionnantes que chez les autres. Donc, a priori, la similarité entre les deux cartes n'est pas forcément lié à ce point. Ou alors, nécessiterait d'avoir les données plus récentes ?
+Répartition des communes fusionnantes ou non en fonction des dernières intercommunalités en 2009 : 
+        CA   CC   CU SIVOM SIVU  SMF  SMO
+  NON  0.1  0.5  0.1  14.1 17.6 32.6 35.0
+  OUI  0.0  1.3  0.1  11.3 18.9 33.7 34.7
+C'est, en revanche, davantage visible si on ne considère que les régions "Ouest" (Normandies, Bretagne, Pays-de-la-Loire), pour lesquelles le résultat du test est :
+X-squared = 103.52, df = 6, p-value < 2.2e-16
+
+        CA   CC   CU SIVOM SIVU  SMF  SMO
+  NON  0.2  0.4  0.1   7.0 36.4 35.0 20.9
+  OUI  0.0  1.1  0.2   4.6 23.2 43.6 27.3
+  
+```{r Import des données sur appartenance intercommunale pour compilation, eval = FALSE}
+# list.files("data-raw/Groupements_intercommunaux_2011")
+
+Int_1 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Alsace.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_2 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Aquitaine.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_3 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Auvergne.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_4 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Basse-Normandie.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_5 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Bourgogne.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_6 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Bretagne.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_7 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Centre.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_8 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Champagne-Ardenne.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_9 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Corse.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_10 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Franche-Comté.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_11 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Haute-Normandie.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_12 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Île-de-France.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_13 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Languedoc-Roussillon.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_14 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Limousin.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_15 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Lorraine.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_16 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Midi-Pyrénées.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_17 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Nord-Pas-de-Calais.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_18 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Pays de la Loire.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_19 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Picardie.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_20 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Poitou-Charentes.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_21 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Provence-Alpes-Côte d'Azur.csv", stringsAsFactors=TRUE, sep = "\t")
+Int_22 <- read.csv2("data-raw/Groupements_intercommunaux_2011/Rhône-Alpes.csv", stringsAsFactors=TRUE, sep = "\t")
+#Compliation des fichiers
+Interco_Compil <- rbind (Int_1, Int_2, Int_3, Int_4, Int_5, Int_6, Int_7,
+                         Int_8, Int_9, Int_10, Int_11, Int_12, Int_13, Int_14,
+                         Int_15, Int_16, Int_17, Int_18, Int_19, Int_20, Int_21, Int_22)
+# Export des fichiers pour réutilisation ultérieure
+write.table(Interco_Compil, "data-raw/Groupements_intercommunaux_2011/Compilation_Interco.csv",
+            sep="\t", row.names=FALSE)
+# Import du fichier compilé
+Interco <- read.csv2("data-raw/Groupements_intercommunaux_2011/Compilation_Interco.csv",
+                     stringsAsFactors=TRUE, sep = "\t")
+
+```
+
+```{r Import data appartenance intercommunale, eval = FALSE}
+IntercoTout <- read.csv2("data-raw/Groupements_intercommunaux_2011/Compilation_Interco.csv",
+                     stringsAsFactors=TRUE, sep = "\t")
+IntercoTout$DateEffet <- as.Date(IntercoTout$Date.d.effet, tryFormats = "%Y-%m-%d")
+# summary(IntercoTout$DateEffet)
+
+# Sélection, pour chaque commune, de la ligne correspondant à la date la plus récente
+summary(IntercoTout$Type)
+IntercoSelect <- subset (IntercoTout, Type == "Commune")
+# Pour voir les occurrences
+# IntercoSelect <- unique(IntercoTout$Nom.membre)
+# IntercoSelect [1:4]
+# On identifie les doublons (quand une commune est présente une seule fois) en commençant par les plus anciens
+doublons <- which(duplicated(IntercoSelect[,"Nom.membre"], fromLast=TRUE))
+doublons[1:10]
+# On supprime les doublons
+DernierInterco <- IntercoSelect[-doublons,]
+# On ne garde que les donées qui nous intéressent
+DernierInterco <- DernierInterco[,c("Nom.membre","DateEffet","Nom.du.groupement", "Nature.juridique")]
+rm(IntercoTout)
+rm(IntercoSelect)
+rm(doublons)
+
+colnames(DernierInterco) [1] <- "Nom.commune"
+colnames(DernierInterco) [2] <- "DateDernierInterco"
+colnames(DernierInterco) [3] <- "NomDernierInterco"
+colnames(DernierInterco) [4] <- "NatureDernierInterco"
+```
+
+
