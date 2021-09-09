@@ -31,6 +31,7 @@ library(foreign) # Pour import .dbf
 library(dplyr) # Pour l'agrégation des données
 
 ```
+# test ajout
 
 # Mots-clés
 commune, commune nouvelle, fusion de données, bases de données, France
