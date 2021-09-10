@@ -1,5 +1,5 @@
 ---
-title: "Communes nouvelles : préparation des données"
+title: "Communes nouvelles : réalisation d'une base de données"
 author: "Auteur anonymisé"
 date: '`r format(Sys.Date(), "%d %B %Y")`'
 output:
@@ -673,6 +673,10 @@ Il s'agit exactement des mêmes codes utilisés pour `df_new`, à la différence
 Les jeux de données de référence sont exportés dans le dossier `data` au format RData. 
 
 ```{r export_data}
+# Trois lignes ci-desssous pour créer le dossier nécessaire à l'accueil des données créées
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # On définit le dossier en cours comme répertoire de travail
+# getwd() # Pour vérification
+# dir.create("data") # création du dossier destiné à accueillir les données créées
 
 try(save(df2011, df_new, file = "data/refdata.Rdata"))
 
