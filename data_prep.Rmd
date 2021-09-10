@@ -65,13 +65,59 @@ Cette unicité n'est cependant pas complètement valable dans le temps : outre q
 
 La jointure entre les données et les géométries de référence est évidemment facilitée pour permettre cartographie et analyse spatiale.
 
-Le présent *data paper*, lisible ici sous forme de texte, est issu d'un Markdown mis librement à disposition et comportant la totalité des lignes de code nécessaire à la reproduction de la démarche.
+Le présent *data paper*, lisible ici sous forme de texte, est issu d'un Markdown mis librement à disposition et comportant la totalité des lignes de code nécessaire à la reproduction de la démarche (ces dernières sont ici masquées pour faciliter la lecture).
 
 # 2 - Présentation des sources
 
 Les statistiques publiques françaises sont aujourd'hui massivement accessibles, globalement fiables et bien documentées. Nous avons donc décidé de nous appuyer sur ces dernières. L'IGN (Institut Géographique National) met à disposition les géométries de référence nécessaires (2.1) et l'INSEE les données statistiques (2.2) ainsi que celles permettant de documenter les fusions de communes (2.3).
 
 ## 2.1 - Les géométries de référence
+
+L'IGN propose des données multiples, dont un fond géographique à l'échelle des communes. Nous avons utilisé le fond [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/documentation/diffusion/telechargement-donnees-libres.html#geofla) puisque l'année 2011 est la dernière avant toute création de commune.
+
+## 2.2 - Les données contextuelles statistiques : Fichiers sources et indicateurs cibles
+Afin de caractériser les spécificités des communes nouvelles, plusieurs tables statistiques à l'échelon communal sont disponibles. Ces tables statistiques sont pour la plupart définies en géographie du 1er janvier 2011. 
+
+La table suivante résume les indicateurs ciblés pour la collecte de données. Ils constituent généralement des numérateurs et dénominateurs qui pourront, par la suite, être composés en ratios. 
+
+Ces données sont accessibles sur le site Web de l'INSEE à partir du nom du jeu de données Excel présent dans la table ci-dessous.    
+
+```{r stat_target, echo = FALSE}
+
+target <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ind_target"))
+
+# knitr::kable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")], row.names = F, digits = 1) # Pour export html
+ft <- flextable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")])
+ft <- width(ft, width = 1.7)
+ft
+```
+
+## 2.3 - Données concernant les fusions communales et les communes nouvelles
+
+La [table de passage communale](https://www.insee.fr/fr/information/2028028) produite par l'INSEE restitue l'ensemble des changements qui ont touché des communes en France depuis 2003. Cette table ne concerne pas exclusivement les communes nouvelles. 
+
+Pour cette raison, nous avons associé à ce fichier d'origine d'autres tables mises à disposition par l'INSEE : la liste des communes nouvelles ( [un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968)). Pour récupérer les créations de communes nouvelles antérieures au 2 janvier 2015, un fichier est créé à partir de l'interface d'[historique des communes](https://www.insee.fr/fr/metadonnees/historique-commune?taille=100&debut=0&modification=MG&p-debut=2003&p-fin=2014) de l'INSEE. 
+NB : Les tables de passages de l'INSEE sont du 2 janvier de l'année indiquée jusqu'au 1er janvier de l'année suivante, inclue (par exemple, la table de passage "2015") comprend toutes les fusions du 2 janvier 2015 au 1er janvier 2016.
+
+Le tableau suivant présente le récapitulatif des informations mises à disposition par l'INSEE : 
+
+```{r changes, echo = FALSE}
+
+tab <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "tab_passage"))
+
+# knitr::kable(tab, row.names = F) # Pour export html
+ft <- flextable(tab)
+ft <- width(ft, width = 1.7)
+ft
+```
+
+
+
+# 3 - Les méthodes mises en œuvre
+
+Nous allons ici détailler chaque étape réalisée pour importer, préparer, agréger et exporter l'ensemble des données nécessaires à l'analyse du phénomène des communes nouvelles.
+
+## 3.1 - Import des géométries de référence
 
 Le fond géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/documentation/diffusion/telechargement-donnees-libres.html#geofla) est importé, c'est l'objet `geom2011`. Les arrondissements marseillais, lyonnais et parisiens sont agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence qui seront utilisées ultérieurement. Les communes de Corse sont aussi supprimées, étant donné qu'elles ne sont pas concernées par le processus de création de communes nouvelles. Cela améliorera aussi la résolution des représentations cartographiques à venir. 
 
@@ -119,46 +165,6 @@ df$CODE_DEPT <- as.character(df$CODE_DEPT)
 
 
 
-## 2.2 - Les données contextuelles statistiques : Fichiers sources et indicateurs cibles
-Afin de caractériser les spécificités des communes nouvelles, plusieurs tables statistiques à l'échelon communal sont importées. Ces tables statistiques sont pour la plupart définies en géographie du 1er janvier 2011. 
-
-Voici une table qui résume les indicateurs ciblés pour cette collecte de données - constituant généralement des numérateurs et dénominateurs qui pourront, par la suite, être composés en ratios. 
-
-Ces données sont accessibles sur le site Web de l'INSEE à partir du nom du jeu de données Excel présent dans la table ci-dessous. 
-
-```{r stat_target, echo = FALSE}
-
-target <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ind_target"))
-
-# knitr::kable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")], row.names = F, digits = 1) # Pour export html
-ft <- flextable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")])
-ft <- width(ft, width = 1.7)
-ft
-```
-
-## 2.3 - Données concernant les fusions communales et les communes nouvelles
-
-La [table de passage communale](https://www.insee.fr/fr/information/2028028) produite par l'INSEE est importée. Elle restitue l'ensemble des changements qui ont touché des communes en France depuis 2003. Cette table ne concerne pas exclusivement les communes nouvelles. 
-
-Pour cette raison, on associe à ce fichier d'origine d'autres tables mises à disposition par l'INSEE : le listing des communes nouvelles ( [un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968)). Pour récupérer les créations de communes nouvelles antérieures au 2 janvier 2015, un fichier est créé à partir de l'interface d'[historique des communes](https://www.insee.fr/fr/metadonnees/historique-commune?taille=100&debut=0&modification=MG&p-debut=2003&p-fin=2014) de l'INSEE. 
-NB : Les tables de passages de l'INSEE sont du 2 janvier de l'année indiquée jusqu'au 1er janvier de l'année suivante, inclue (par exemple, la table de passage "2015") comprend toutes les fusions du 2 janvier 2015 au 1er janvier 2016.
-Voici le récapitulatif des informations mises à disposition par l'INSEE : 
-
-```{r changes, echo = FALSE}
-
-tab <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "tab_passage"))
-
-# knitr::kable(tab, row.names = F) # Pour export html
-ft <- flextable(tab)
-ft <- width(ft, width = 1.7)
-ft
-```
-
-
-
-# 3 - Les méthodes mises en œuvre
-
-## 3.1 - Import des géométries de référence
 ## 3.2 - Préparation des données statistiques
 
 Le code ci-dessous importe les indicateurs contenus dans ces tables de référence, réalise une jointure avec les codes communaux 2011 et filtre les indicateurs pour ne conserver que les indicateurs d'intérêt. Le tout est inclu dans un objet `df2011` qui constituera l'objet incluant les données contextuelles d'intérêt pour cette étude, aux géographies du 1er janvier 2011. 
