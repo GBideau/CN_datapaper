@@ -58,12 +58,14 @@ Cette unicité n'est cependant pas complètement valable dans le temps : outre q
 
 À partir des données INSEE et le fond géographique de référence aux géographies du 1er janvier 2011 (avant toute création de commune nouvelle), il s'agit de créer :
 
-- Les géométries de référence au 1er janvier 2011 et au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) avec le même niveau de généralisation cartographique. Ces objets seront appelés respectivement `geom2011` et  `geom_new`. 
-- Les géométries des communes fusionnantes devenant des communes nouvelles : `geomfus2011` avant les fusions (au 1er janvier 2011), et `geomCN_new` après les fusions. 
-- Des données statistiques contextuelles pour l'ensemble des communes existant en 2011, regroupées dans l'object `df2011`. Ces données sont d'ordre socio-économique (emploi, structure par âge, etc.), relatives à des zonages (EPCI d'appartenance, catégories d'aires urbaines), et plus important, permettent de décrire la nature des fusions communales à l'oeuvre.
-- Ces mêmes données statistiques (donc les plus récentes qui aient été publiées à la géographie administrative de 2011, avant la création de toute commune nouvelle), sont agrégées en fonction de leur nature (stock, ratio, valeurs textuelles) pour constituer l'objet `df_new`, qui reprendr la géographie administrative la plus récente (ici 2021).
+* Les géométries de référence au 1er janvier 2011 et au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) avec le même niveau de généralisation cartographique. Ces objets seront appelés respectivement `geom2011` et  `geom_new`. 
+* Les géométries des communes fusionnantes devenant des communes nouvelles : `geomfus2011` avant les fusions (au 1er janvier 2011), et `geomCN_new` après les fusions. 
+* Des données statistiques contextuelles pour l'ensemble des communes existant en 2011, regroupées dans l'object `df2011`. Ces données sont d'ordre socio-économique (emploi, structure par âge, etc.), relatives à des zonages (EPCI d'appartenance, catégories d'aires urbaines), et plus important, permettent de décrire la nature des fusions communales à l'oeuvre.
+* Ces mêmes données statistiques (donc les plus récentes qui aient été publiées à la géographie administrative de 2011, avant la création de toute commune nouvelle), sont agrégées en fonction de leur nature (stock, ratio, valeurs textuelles) pour constituer l'objet `df_new`, qui reprendr la géographie administrative la plus récente (ici 2021).
 
 La jointure entre les données et les géométries de référence est évidemment facilitée pour permettre cartographie et analyse spatiale.
+
+![**Schéma général de la construction de la base de donnée**](figures/Schéma.png)
 
 Le présent *data paper*, lisible ici sous forme de texte, est issu d'un Markdown mis librement à disposition et comportant la totalité des lignes de code nécessaire à la reproduction de la démarche (ces dernières sont ici masquées pour faciliter la lecture).
 
@@ -115,15 +117,15 @@ ft
 
 # 3 - Les méthodes mises en œuvre
 
-Nous allons ici détailler chaque étape réalisée pour importer, préparer, agréger et exporter l'ensemble des données nécessaires à l'analyse du phénomène des communes nouvelles.
+Nous allons détailler ici les étapes réalisées pour importer, préparer, agréger et exporter l'ensemble des données nécessaires à l'analyse du phénomène des communes nouvelles.
 
 ## 3.1 - Import des géométries de référence
 
-Le fond géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/documentation/diffusion/telechargement-donnees-libres.html#geofla) est importé, c'est l'objet `geom2011`. Les arrondissements marseillais, lyonnais et parisiens sont agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence qui seront utilisées ultérieurement. Les communes de Corse sont aussi supprimées, étant donné qu'elles ne sont pas concernées par le processus de création de communes nouvelles. Cela améliorera aussi la résolution des représentations cartographiques à venir. 
+Le fond géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/documentation/diffusion/telechargement-donnees-libres.html#geofla) a d'abord été importé, c'est l'objet `geom2011`. Les arrondissements marseillais, lyonnais et parisiens ont été agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence utilisées ultérieurement. Les communes de Corse ont également été supprimées, étant donné qu'elles ne sont pas concernées par le processus de création de communes nouvelles. Cela a aussi permis d'améliorer la résolution des représentations cartographiques à venir. 
 
-Ce fond communal est ensuite agrégé au niveau des départements, c'est l'objet `dep`.
+Ce fond communal a ensuite été agrégé au niveau des départements pour permettre des cartographies plus lisibles, c'est l'objet `dep`.
 
-On exporte finalement le code communal de ces géométries, qui servira de référence pour les jointures avec les données attributaires à venir. 
+Nous avons finalement extrait le code communal de ces géométries, ce dernier servant ultérieurement de référence pour les jointures avec les données attributaires. 
 
 ```{r geom2011, include = FALSE}
 
@@ -134,7 +136,7 @@ geom2011 <- st_transform(geom2011, crs = 3035) # Transformation Lambert-93
 
 
 # Suppression et regroupement des arrondissements de Paris, Lyon et Marseille
-arrcom <- read_excel("data-raw/geom/com_arm.xlsx") # Table de passage des arrondissements
+arrcom <- read_excel("data-raw/geom/com_arm.xlsx") # Import de la table de passage des arrondissements
 com <- merge(geom2011, arrcom, by = "INSEE_COM", all.y = TRUE) # Géométries des arrondissements
 com <- aggregate(x = com[,"CODGEO"], by = list(com$CODGEO), # On les aggrège
                    FUN = head, 1)
@@ -150,10 +152,10 @@ geom2011 <- rbind(geom2011[,c("CODGEO","NOM_COMM", "CODE_DEPT")],
 
 
 # Agrégation en départements
-dep <-  aggregate(x = geom2011[,"CODE_DEPT"], by = list(geom2011$CODE_DEPT), # Agrégation com > dépt
+dep <-  aggregate(x = geom2011[,"CODE_DEPT"], by = list(geom2011$CODE_DEPT), # Agrégation des communes en départements
                    FUN = head, 1)
 
-# Codgeo de référence
+# Création d'un data frame avec les CODGEO de référence
 df <- st_set_geometry(geom2011[,c("CODGEO", "CODE_DEPT")], NULL)
 
 # Forcer character
@@ -167,7 +169,7 @@ df$CODE_DEPT <- as.character(df$CODE_DEPT)
 
 ## 3.2 - Préparation des données statistiques
 
-Le code ci-dessous importe les indicateurs contenus dans ces tables de référence, réalise une jointure avec les codes communaux 2011 et filtre les indicateurs pour ne conserver que les indicateurs d'intérêt. Le tout est inclu dans un objet `df2011` qui constituera l'objet incluant les données contextuelles d'intérêt pour cette étude, aux géographies du 1er janvier 2011. 
+Il a ensuite fallu importer les indicateurs contenus dans les tables de référence, réaliser une jointure avec les codes communaux 2011 et filtrer les indicateurs pour ne conserver que les indicateurs d'intérêt. Le tout a été inclu dans un objet `df2011`, regroupant donc les données contextuelles d'intérêt pour cette étude, aux géographies du 1er janvier 2011. 
 
 ```{r data_import}
 
@@ -218,13 +220,13 @@ colnames(df2011) <- target$recoding
 
 ```
 
-Les catégories du zonage en aires urbaines sont aussi regroupées. 
+Les catégories du zonage en aires urbaines sont également été regroupées, pour faciliter les analyses de cette typologie. Nous avons ainsi créé des catégories pour les communes constituant par exemple les petits pôles (code ZAU 221 et 222), une catégorie hors influance des pôles (300 et 400) ou encore les communes périurbaines (112 et 120).
 
 ```{r zau_categ}
 # Pour créer des catégories plus vastes à partir des 
 # Utilisation du ZAU pour cibler les communes appartenant à un petit pôle (unité urbaine et couronne)
 
-# Utilisation du ZAU pour cibler les communes du rural profond
+# Utilisation du ZAU pour cibler les communes constituant les petits pôles
 df2011$ZAU_POL [df2011$CATAEU2010 %in% c("221", "222")] <- "OUI"
 
 # Utilisation du ZAU pour cibler les communes du rural profond
@@ -248,7 +250,7 @@ df2011$ZAU_AU [df2011$CATAEU2010 %in% c("300", "400")] <- "Autres"
 selecV <- c("ZAU_POL", "ZAU_RUR", "ZAU_MAR_SP", "ZAU_MAR", "ZAU_PERI", "ZAU_AU")
 df2011[selecV][is.na(df2011[selecV])] <- "NON"
 
-# # Transformation en facteur des catégories des aires urbaines
+# # Si on souhaite, transformation en facteur des catégories des aires urbaines
 # df2011$CATAEU2010 <- as.factor(df2011$CATAEU2010)
 # df2011$CODGEO <- as.character(df2011$CODGEO)
 
@@ -258,25 +260,23 @@ df2011[selecV][is.na(df2011[selecV])] <- "NON"
 
 ## 3.3 - Données concernant les fusions communales et les communes nouvelles
 
-On importe désormais la [table de passage communale](https://www.insee.fr/fr/information/2028028) qui présente l'ensemble des changements qui ont touché des communes en France depuis 2003 ainsi que les tables mises à disposition par l'INSEE ([un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968)). 
+La partie la plus technique de l'importation a concerné les données concernant les fusions communales. Nous avons tout d'abord importé la [table de passage communale](https://www.insee.fr/fr/information/2028028) qui présente l'ensemble des changements qui ont touché des communes en France depuis 2003 ainsi que les tables mises à disposition par l'INSEE ([un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968)). 
 
-On regroupe toutes ces informations au sein d'un seul dataframe. Si la date d'effet (Date2) est manquante au niveau des données fournies par l'INSEE, on applique la valeur au 1er janvier de l'année suivante à ce champ.  
+Nous avons regroupé toutes ces informations au sein d'un seul dataframe. Si la date d'effet (Date2) était manquante au niveau des données fournies par l'INSEE, on appliquait alors la valeur au 1er janvier de l'année suivante à ce champ (c'était la signification de l'absence de donnée dans ce champs).  
 
-À noter que pour mettre à jour la table de passage avec d'éventuelles fusions ultérieures, il suffit de rajouter les fichier les plus récents.
-Travail pour l'intégration des données publiées chaque année :
-- Intégration nouvelle table fusions 2021
-- intégration nouvelle table évolutions 2003-2021
-- rechercher la dernière année connue pour la modifier dans le texte.
+À noter que pour mettre à jour la table de passage avec d'éventuelles fusions ultérieures, il suffira de rajouter les fichier les plus récents suivants (dans le dossier data-raw comme dans le code pour importer ces derniers) :
 
+* La nouvelle table concernant les fusions de l'année écoulée (2021 par exemple, donc situation au 1er janvier 2022) ;
 
-À noter également que les dates des fichiers Excel fournis par l'INSEE ne sont pas formatés de façon identique. Au format texte jusqu'à 2017, au format date à partir de 2018. Nous avons préalablement converti les champs date au format texte pour l'ensemble des fichiers. Cela signifie qu'en cas de mise à jour des données il faudra de nouveau convertir les dates au format texte, ou inversement, tout transformer au format date depuis le début dans les fichiers Excel. 
+* La table des évolutions mises à jour (s'appelant probablement 2003-2022).
 
-
+À noter également que les dates des fichiers Excel fournis par l'INSEE ne sont pas formatés de façon identique. Au format texte jusqu'à 2017, au format date à partir de 2018. Nous avons préalablement converti les champs date au format texte pour l'ensemble des fichiers. Cela signifie qu'en cas de mise à jour des données il faudra de nouveau convertir les dates au format texte (ou, inversement, tout transformer au format date depuis le début dans les fichiers Excel). 
 
 
 ### 3.3.1 - Identification des communes fusionnantes
 
-On commence par identifier les communes fusionnantes à partir de la table de passage globale fournie par l'INSEE depuis la géométrie de 2003.
+Nous avons commencé par identifier les communes ayant connu une fusion à partir de la table de passage globale fournie par l'INSEE depuis la géométrie de 2003. Cette dernière comporte une page dédiée à ces fusions.
+Il faut garder à l'esprit que cette table comprend toutes les fusions depuis, 2003. Elle comprend donc des fusions de communes qui n'ont pas créé de communes nouvelles. C'est pour cela qu'il ne faudra pas confondre le champs `FUSION` créé ici et le champs `COM_NOUV`, créé plus tard, qui concerne bien les communes nouvelles.
 
 ```{r changes_manip1}
 
@@ -300,14 +300,22 @@ df2011$annee_modif[!is.na(df2011$annee_modif)] <- "OUI"
 df2011$annee_modif[is.na(df2011$annee_modif)] <- "NON"
 colnames(df2011)[length(df2011)] <- "FUSION"
 
+
 ```
 
 ### 3.3.2 - Identification et caractérisation des communes nouvelles
 
-Il s'agit ici de sélectionner, dans chaque table de passage fournie par l'INSEE, les communes fusionnantes et les communes nouvelles créées.
-Certains cas particuliers demandent un traitement spécifique :
-- Bettoncourt-le-Haut a fusionné en 1972 avec Épizon, sous le statut de commune-associée. Au 1er janvier 2013, avec la création de la commune-nouvelle d'Épizon, la commune de Bettoncourt-le-Haut devient commune déléguée. Comme on ne dispose pas des données 2011 pour Bettoncourt-le-Haut, on préfère ignorer cette commune en considérant que la commune nouvelle d'Épizon est le résultat de la fusion des seules Épizon et Pautaines-Augeville. Source : https://www.insee.fr/fr/metadonnees/cog/commune/COM52046-bettoncourt-le-haut.
-- On doit également traiter à la main le cas de la commune de L'Oudon, qui a changé de code communal : issue de la fusion-association de dix communes en 1973, avait jusqu'en 1990 le code de 14472. Du fait d'un transfert de chef-lieu, le code a été modifié en 14697. Après un nouveau transfert de chef-lieu en  2014,  l'INSEE décide en  2016  de  ré-attribuer  le  code de  14472. Cette commune a fusionné au 1er janvier 2017 au sein de la commune nouvelle de Saint-Pierre-en-Auge. Pour éviter les problèmes d'associations entre les données, nous avons laissé l'ancien code 14697, qui est celui utilisé dans les données INSEE que nous utilisons (millésime 2011).
+Il s'est ensuite agit d'importer les informations contenues dans les tables de passage spécifiques (celles fournies année par année depuis 2016 par l'INSEE et celle créée manuellement pour celles entre 2012 et 2015). Elles concernent bien des communes créées après l'élaboration du statut de commune nouvelle (par la loi du 16 décembre 2010 intitulée « Loi de réforme des collectivités territoriales ») et elles sont plus détaillées concernant ces fusions (création ou non de communes déléguées et date de création par exemple)[^notestatut].
+
+[^notestatut]: Le statut de commune nouvelle a été presque unanimement plébiscité. On peut noter le cas jusqu'ici unique de Fontenoy-le-Château (Vosges), créé au 1er janvier 2013 mais dont la fusion a été transformée en fusion simple.
+
+Certains cas particuliers ont demandé un traitement spécifique :
+
+* Bettoncourt-le-Haut a fusionné en 1972 avec Épizon, sous le statut de commune-associée. Au 1er janvier 2013, avec la création de la commune-nouvelle d'Épizon, la commune de Bettoncourt-le-Haut devient commune déléguée. Comme on ne dispose pas des données 2011 pour Bettoncourt-le-Haut, on préfère ignorer cette commune en considérant que la commune nouvelle d'Épizon est le résultat de la fusion des seules Épizon et Pautaines-Augeville. Source : https://www.insee.fr/fr/metadonnees/cog/commune/COM52046-bettoncourt-le-haut.
+
+* On doit également traiter individuellement le cas de la commune de L'Oudon, qui a changé de code communal : issue de la fusion-association de dix communes en 1973, elle avait jusqu'en 1990 le code 14472. Du fait d'un transfert de chef-lieu, le code a été modifié en 14697. Après un nouveau transfert de chef-lieu en  2014,  l'INSEE décide en  2016  de  ré-attribuer  le  code de  14472. Cette commune a ensuite fusionné au 1er janvier 2017 au sein de la commune nouvelle de Saint-Pierre-en-Auge. Pour éviter les problèmes d'associations entre les données, nous avons laissé l'ancien code 14697, qui est celui utilisé dans les données INSEE que nous utilisons (millésime 2011).
+
+Enfin, nous avons choisi de distinguer les vagues de fusions : une première, concernant très peu de communes, entre le 1er janvier 2011 et le 1er janvier 2015 inclu, ensuite une vague par an pour les années 2015, 2016, 2017 et 2018 puis un creux assez net nous a conduit à réunir les années 2019 et 2020.
 
 ```{r changes_manip2}
 
@@ -355,16 +363,17 @@ for(item in list_df){
 
 }
 
-# Supprimer les erreurs de saisie
+# Supprimer lignes qui ne concernent que des commentaires dans la feuille excel importée
 comNew <- subset(comNew, comNew$DepComN != "NA")
+# test <- dplyr::anti_join(comNew, comNew2) # Si on souhaite identifier ces erreurs
 
-# Reformatage année fusion
+# Reformatage de l'année de fusion
 comNew$FusAn <- as.Date(comNew$Date2, tryFormats = "%d/%m/%Y")
 
 # Découpage en phases temporelles de fusion
 comNew$FusPhas <- cut(comNew$FusAn, 
                         breaks = as.Date(c("2011-1-1", "2015-1-2", "2016-1-2",
-                                           "2017-1-2","2018-1-2", "2020-1-2","2021-1-2")), 
+                                           "2017-1-2","2018-1-2", "2019-1-2","2021-1-2")), 
                         labels = c("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"))
 
 # Pour fusions successives et à code DepComA identique, ne conserver que l'élément le plus ancien
@@ -384,6 +393,13 @@ df2011 <- merge(df2011, comNew[,c("DepComA","ChefLieu","ComDLG", "FusAn","FusPha
 df2011$COM_NOUV[!is.na(df2011$FusPhas)] <- "OUI"
 df2011$COM_NOUV[is.na(df2011$FusPhas)] <- "NON"
 df2011$FusPhas <- as.character(df2011$FusPhas)
+
+
+# Pour comparer les données issues de la table générale et celles compilées à partir des tables années par années, on peut créer l'objet suivant :
+DiffcomFuscomNew <- dplyr::anti_join(comFus, comNew, by = c("COM_INI" = "DepComA")) 
+
+# Les principales différences sont bien liées à la période plus large de la table générale (prend en compte les fusions avant 2011, qui ne sont pas des communes nouvelles)
+
 
 ```
 
@@ -645,8 +661,8 @@ for (i in 1:nrow(ratio)){
 
 Deux jeux de données ont ainsi été produits :
 
-- Le premier, `df2011`, contient l'ensemble des données communales françaises désirées aux géographies du 1er janvier 2011. 
-- Le second, `df_new`, contient les informations aux géographies du 1er janvier de la dernière année pour laquelle les données ont été publiées par l'INSEE. Les données 2011 ont été regroupées en fonction du fichier des fusions délivré par l'INSEE et la fonction `comix`. 
+* Le premier, `df2011`, contient l'ensemble des données communales françaises désirées aux géographies du 1er janvier 2011. 
+* Le second, `df_new`, contient les informations aux géographies du 1er janvier de la dernière année pour laquelle les données ont été publiées par l'INSEE. Les données 2011 ont été regroupées en fonction du fichier des fusions délivré par l'INSEE et la fonction `comix`. 
 
 Voici les codes respectifs que ces fichiers contiennent, ainsi qu'un descriptif de leur contenu. 
 
@@ -723,13 +739,13 @@ geomCN_new <- geomCN_new[,c("CODGEO_new")]
 
 ```
 
-5 couches géographiques sont exportées dans le fichier `geom.gpkg` :
+Cinq couches géographiques sont exportées dans le fichier `geom.gpkg` :
 
-- Les géométries communales au 1er janvier 2011 (`geom2011`).
-- Les géométries communales au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) (`geom_new`).
-- Les géométries des communes concernées par une création de communes nouvelles, avant fusion (`geomfus2011`).
-- Les géométries des communes nouvelles, après fusion (`geomCN_new`).
-- Une couche d'habillage pour les représentations cartographiques : les départements (`dep`).
+* Les géométries communales au 1er janvier 2011 (`geom2011`).
+* Les géométries communales au 1er janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE (2021) (`geom_new`).
+* Les géométries des communes concernées par une création de communes nouvelles, avant fusion (`geomfus2011`).
+* Les géométries des communes nouvelles, après fusion (`geomCN_new`).
+* Une couche d'habillage pour les représentations cartographiques : les départements (`dep`).
 
 Ces géométries de référence sont exportées dans le dossier "data". 
 
