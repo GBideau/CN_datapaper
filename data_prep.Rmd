@@ -15,6 +15,9 @@ csl: https://journals.openedition.org/cybergeo/32003?file=1 # ou biblio/cybergeo
 #   chunk_output_type: console
 nocite: '@*' # permet que toutes les références de la bibliographie soient citées, même sans appel dans le texte
 # Pour désanonymiser, remplacer _Auteur anonymisé_ par _Noms auteurs_
+
+# Tu ne peux pas citer des réf en bibklio non citées dans le texte
+
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, # Afficher ou non le code R dans le document
