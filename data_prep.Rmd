@@ -14,10 +14,7 @@ csl: https://journals.openedition.org/cybergeo/32003?file=1 # ou biblio/cybergeo
 # editor_options: 
 #   chunk_output_type: console
 #nocite: '@*' # permet que toutes les références de la bibliographie soient citées, même sans appel dans le texte
-# Pour désanonymiser, remplacer _Auteur anonymisé_ par _Noms auteurs_ et décommenter nocite
-
-## Oui, pour la biblio auteur anonymisée, je pense qu'il vaut mieux mettre la référence mais sans le nom de l'auteur.
-
+# Pour désanonymiser, remplacer _Auteur anonymisé_ par _Noms auteurs_ 
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, # Afficher ou non le code R dans le document
@@ -39,30 +36,16 @@ library(flextable) # Pour la création de tableaux
 
 ```
 
-
-# Résumé
-<!-- à faire -->
-
-# Abstract
-<!-- à faire -->
-
-
 # Mots-clés
-géographie administrative, fusions de communes, communes nouvelles, France, gouvernements locaux, 
-
-<!-- Les mots clés doivent être plus problématisées -->
+Géographie administrative, fusions de communes, communes nouvelles, France, gouvernements locaux.
 
 # Keyword
 Administrative geography, municipal mergers, new communes, France, local governements.
 
-<!-- Passer par l'anglais permet de restructurer efficacement les mots clés, pour être efficace dans les deux langues -->
-
-
-
 
 # Introduction
 
-Depuis 2012, un mouvement sans précédent de constitution de “communes nouvelles” se déploie. Ces regroupements représentent 3,4% de la population française ; entre 2012 et le 1er janvier 2021, 2517 communes (soit 7% des communes françaises) ont contribué à la création de 778 communes nouvelles, (Auteur, 2019) @auteur2019. Si les dimensions juridiques [@aubelle2016 ; @lenfant2018 ; @verpeaux2016] ou politiques [@frinault2017 ; @kada2017; @pasquier2017 ; @ville2017] ont pu être dévelppées dans les travaux récents, la création de ces nouveaux périmètres de gouvernements locaux pose un certain nombre de problèmes lorsqu’il s’agit de traiter des données statistiques faisant référence aux communes, nécessitant des appariements sur des périmètres variables dans le temps, et donc la création de tables de passage. Une analyse plus fine et quantitative du phénomène des communes nouvelles (Auteur, 2021) a donc nécessité la création d'une base de donnée spécifique, qui est l'objet de cette contribution.
+Depuis 2012, un mouvement sans précédent de constitution de “communes nouvelles” se déploie. Ces regroupements représentent 3,4% de la population française ; entre 2012 et le 1er janvier 2021, 2517 communes (soit 7% des communes françaises) ont contribué à la création de 778 communes nouvelles, [@auteur2019]. Si les dimensions juridiques [@aubelle2016 ; @lenfant2018 ; @verpeaux2016] ou politiques [@frinault2017 ; @kada2017; @pasquier2017 ; @ville2017] ont pu être développées dans les travaux récents, la création de ces nouveaux périmètres de gouvernements locaux pose un certain nombre de problèmes lorsqu’il s’agit de traiter des données statistiques faisant référence aux communes, nécessitant des appariements sur des périmètres variables dans le temps, et donc la création de tables de passage. Une analyse plus fine et quantitative du phénomène des communes nouvelles [@auteurAparaitre] a donc nécessité la création d'une base de donnée spécifique, qui est l'objet de cette contribution.
 
 
 Les données fournies par l'INSEE (Institut National de la Statistique et des Études Économiques) sont facilement exploitables pour étudier une situation à une année donnée mais rendent malaisée l'étude des regroupements. La base de donnée qui est présentée dans cet article, ainsi que le code qui y est associé ont pour objectif de permettre un travail d’analyse du phénomène de fusions en communes nouvelles.
@@ -70,7 +53,7 @@ Les données fournies par l'INSEE (Institut National de la Statistique et des É
 Certains outils existent pour gérer l'évolution des codes officiels géographiques. Le plus pertinent est sans doute le package `COGugaison`, construit pour le langage R [@antunez2017]. Ce dernier propose, à sa manière, des fonctionnalités qui auraient pu être utilisées pour construire la présente base de donnée. Cependant, il a été publié à partir de 2017, soit après le début de nos recherches sur les communes nouvelles et la réalisation de notre base de données. L’originalité de la démarche que nous proposons consiste à intégrer d’une part les modalités de passages liées à l’évolution des codes géographique, mais également de fournir des modalités des agrégations de données qui permettent l’analyse des territoires ainsi construits par les fusions communales.
 *Commentaire : La référence de l'*Espace géo *est déjà citée plus haut (Auteur, 2021).*
 
-Nous avons donc élaboré, à partir des données issues de la statistique publique, une base permettant l'analyse des communes nouvelles. Nous verrons que sa construction fait partie intégrante de la démarche dans le but de mieux appréhender l'objet d'étude que sont les communes nouvelles. Il a fallu, pour cela, non seulement gérer l'identification des entités territoriales à différentes dates mais aussi agréger les données de manière *ad hoc*. Les procédés utilisés pourront aisément être reproduits sur d'autres cas de fusions. En effet, la reconfiguration des territoires est un phénomène qui se retrouve à de multiples échelles, et bien plus largement que dans le cas français [@comiteeuropeensurlademocratielocaleetregionalecdlr2007 ; @vanier2002]. Les conséquences des régions françaises suite à la loi NOTRe de 20015 a par exemple déjà été étudiée [@dore2021 ; @dumont2018] mais les possibilités d'analyses sont loin d'être épuisées (Auteur, 2021).
+Nous avons donc élaboré, à partir des données issues de la statistique publique, une base permettant l'analyse des communes nouvelles. Nous verrons que sa construction fait partie intégrante de la démarche dans le but de mieux appréhender l'objet d'étude que sont les communes nouvelles. Il a fallu, pour cela, non seulement gérer l'identification des entités territoriales à différentes dates mais aussi agréger les données de manière *ad hoc*. Les procédés utilisés pourront aisément être reproduits sur d'autres cas de fusions. En effet, la reconfiguration des territoires est un phénomène qui se retrouve à de multiples échelles, et bien plus largement que dans le cas français [@comiteeuropeensurlademocratielocaleetregionalecdlr2007 ; @vanier2002]. Les conséquences des régions françaises suite à la loi NOTRe de 20015 a par exemple déjà été étudiée [@dore2021 ; @dumont2018] mais les possibilités d'analyses sont loin d'être épuisées [@auteurAparaitre].
 
 Nous présenterons tout d'abord les objectifs généraux de la réalisation de cette base de donnée en posant les termes du problème de l’appariement, puis les données disponibles, avant de détailler les méthodes mises en œuvre et d'esquisser quelques traitements rendus possibles par cette base.
 
@@ -909,7 +892,7 @@ tab.chi2 <- chisq.test(ZAU)
 Ainsi, les profils des communes fusionnantes et des communes inchangées sont relativement proches. Les écarts les plus importants se situent aux extrêmes ? Les communes fusionnantes sont marquées par une plus faible représentation des communes centres de grands ou moyens pôles dans les communes nouvelles et une sur-représentation des communes multipolarisées ou hors influence des pôles. Un test du Chi² permet de rejeter l’hypothèse d’indépendance des deux variables (X² = `r tab.chi2$statistic`, df = `r tab.chi2$parameter` et p-value = `r tab.chi2$p.value`).
 
 
-D'autres traitements sont évidemment possibles avec la base de données réalisée, comme par exemple l'élaboration d'une typologie à l'aide d'une Classification par Ascendance Hiérarchique (CAH), qui a été réalisée pour les communes créées entre 2012 et le 1^er^ janvier 2020 (Auteur, 2021).
+D'autres traitements sont évidemment possibles avec la base de données réalisée, comme par exemple l'élaboration d'une typologie à l'aide d'une Classification par Ascendance Hiérarchique (CAH), qui a été réalisée pour les communes créées entre 2012 et le 1^er^ janvier 2020 [@auteurAparaitre].
 
 ## 4.3 - La répartition des communes fusionnantes par départements
 À partir de ces données, il est également possible d'observer la répartition des communes fusionnantes en fonction de la trame départementale, en comparant cette répartition avec des données concernant la taille des communes.
