@@ -1,6 +1,6 @@
 ---
-title: "Data paper: Les communes nouvelles françaises (2012-2021) : une méthode pour l'analyse de données à l'échelon municipal selon des limites évolutives / Municipal merger in France (2012-2021): a methodology for data analysis at municipal level with moving boundaries"
-author: "Auteur anonymisé"
+title: "Data paper : Les communes nouvelles françaises (2012-2022) : une méthode pour l'analyse de données à l'échelon municipal selon des limites évolutives / Municipal merger in France (2012-2022): a methodology for data analysis at municipal level with moving boundaries"
+author: "G. Bideau et R. Ysebaert"
 date: '`r format(Sys.Date(), "%d %B %Y")`'
 output:
      # html_document:
@@ -14,7 +14,13 @@ csl: https://journals.openedition.org/cybergeo/32003?file=1 # ou biblio/cybergeo
 # editor_options: 
 #   chunk_output_type: console
 #nocite: '@*' # permet que toutes les références de la bibliographie soient citées, même sans appel dans le texte
-# Pour désanonymiser, remplacer _Auteur anonymisé_ par _Noms auteurs_ 
+
+# NB : À modifier manuellement dans le fichier .docx : 
+# - Enlever date
+# - Remplacer \`A para\^itre par À paraître
+# - Enlever les .X
+# - Modifier les tableaux : noms et largeur de colonne
+# - Rajouter les liens hypertextes dans les références bibliographiques
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, # Afficher ou non le code R dans le document
@@ -36,8 +42,15 @@ library(flextable) # Pour la création de tableaux
 
 ```
 
+
+# Résumé
+Ce *data paper* détaille la réalisation d'une base de données permettant de décrire le phénomène des créations des "communes nouvelles", entre 2012 et 2022, en France. La création de ces nouvelles entités territoriales, par fusions de plusieurs communes, pose des problèmes d'appariement et de potentiels manques de données. À partir de données issues de la statistique publique (INSEE – Institut National de la Statistique et des Études Économiques – et IGN – Institut Géographique National), il s'agit de proposer un processus de compilation et d'agrégation des données pour les communes ayant fusionné. La méthode est ici détaillée, permettant entre autres sa reproductibilité. 
+
+# Abstract
+This data paper presents the creation of a database to describe the phenomenon of the creation of "new municipalities", between 2012 and 2022, in France. These new territorial entities, by merging several municipalities, involve difficulties for merging data and create potentiel missing data. Using data from official statistics (INSEE - National Institute for Statistics and Economic Studies - and IGN - National Geographic Institute), this paper describes a process of compilation and aggregation of data. The method is detailed here, to allow its reproducibility.
+
 # Mots-clés
-Géographie administrative gouvernements locaux, fusions de communes, communes nouvelles, France.
+Géographie administrative, gouvernements locaux, fusions de communes, communes nouvelles, France.
 
 # Keyword
 Administrative geography, local governments, municipal mergers, new communes, France.
@@ -45,46 +58,52 @@ Administrative geography, local governments, municipal mergers, new communes, Fr
 
 # Introduction
 
-Depuis 2012, un mouvement sans précédent de constitution de “communes nouvelles” se déploie. Ces regroupements représentent 3,4% de la population française ; entre 2012 et 2021, 2517 communes (soit 7% des communes françaises) ont contribué à la création de 778 communes nouvelles [@auteur2019]. Si les dimensions juridiques [@aubelle2016 ; @lenfant2018 ; @verpeaux2016] ou politiques [@frinault2017 ; @kada2017; @pasquier2017 ; @ville2017] ont été développées dans les travaux récents, la création de ces nouveaux périmètres de collectivités locales pose un certain nombre de problèmes lorsqu’il s’agit de traiter des données statistiques faisant référence aux communes. Il faut en effet prendre procéder à des appariements de données sur des périmètres variables dans le temps, et donc la création de tables de passage. Une analyse plus fine et quantitative du phénomène des communes nouvelles [@auteurAparaitre] a donc nécessité la création d'une base de données spécifique, qui est l'objet de cette contribution.
-<!---- RLG ; en y pensant, cela ouvre la voie de comparaisons dans le temps à "périmètre constant". Notamment sur des réflexions portant sur la convergence ----->
-<!---- RLG ; phrase 2: insérer un truc sur la loi ----->
+Depuis 2012, un mouvement sans précédent de constitution de “communes nouvelles” se déploie. Ces regroupements représentent 3,4% de la population française ; entre 2012 et le 1er janvier 2022, 2517 communes (soit 7% des communes françaises) ont contribué à la création de 778 communes nouvelles [@bideau2019]. En effet, le maillage territorial français, parfois qualifié de « mille-feuille », a fait l'objet de nombreuses études et critiques, visant en particulier une hypothétique spécificité bien déconstruite depuis [@grison2016]. L'un des échelons ayant sans doute fait le plus couler d'encre est l'échelle communale, présenté comme le territoire d'identification d'une partie des citoyens mais également comme un résidu de la trame paroissiale d'ancien régime, peu réformée depuis et aujourd'hui inadaptée à l'administration territoriale du fait du trop grand nombre d'entités [@ozouf-marignier2013]. Cela a conduit l'État à mener des politiques de réduction du nombre de communes, comme dans les années 1970 avec les fusions dites « Marcellin » [@lenfant2018 ; @tellier2017]. Aux alentours des années 2010, dans un contexte de transformation de l'organisation territoriale française (lois MAPTAM et NOTRe particulièrement [@2014 ; @2015]) plusieurs parlementaires et élus locaux veulent faciliter les fusions de communes en créant un statut plus attractif pour l'entité nouvellement créée. Il s'agira du statut de « Commune nouvelle », créé par la loi du 16 décembre 2010, plus précisément les articles 21 à 25 du chapitre III au sein du Titre II « Adaptation des structures à la diversité des territoires » [@2010], modifié ensuite [@2019]. Les premières fusions n'auront cependant pas lieu avant 2012, ce qui guidera le choix des données intégrées à la base que nous présentons. Des incitations fiscales seront ensuite votées pour tenter d'accélerer un mouvement d'abord timide [@bideau2019 ; @bideau2020].
 
-Les données fournies par l'INSEE (Institut National de la Statistique et des Études Économiques) sont facilement exploitables pour étudier une situation sur une année donnée, mais rendent malaisée l'étude des regroupements. La base de donnée qui est présentée dans cet article, ainsi que le code qui y est associé ont pour objectif de permettre un travail d’analyse du phénomène de fusions en communes nouvelles.
+La commune nouvelle est un statut qui conduit à ce que plusieurs communes (appelées historiques ou fusionnantes) se regroupent pour ne former qu'une seule entité administrative (par exemple en terme de personnalité juridique ou de budgets). Une subdivision peut être maintenue à l'intérieur de la commune nouvelle : il s'agit des « commune déléguées ». Cependant, ces dernières n'ont qu'un rôle assez limité pour ne pas dire symbolique (existence d'un conseil de la commune déléguée mais uniquement consultatif, un maire déléguée avec des pouvoirs très restreints, possibilité de mentionner le nom de la commune déléguée dans l'état-civil etc).
 
-Certains outils existent pour gérer l'évolution des codes géographiques officiels (code communal). Le plus pertinent est sans doute le package `COGugaison`, construit pour le langage R [@antunez2017]. Ce dernier propose des fonctionnalités dans une certaine mesure proche de notre contribution. Cependant, il a été publié à partir de 2017, c'est-à-dire après le début de nos travaux sur les communes nouvelles, et la réalisation de notre base de données. Dans ce contexte, l'originalité de la démarche que nous proposons consiste à intégrer d’une part les modalités de passages liées à l’évolution des codes géographique, mais également de fournir des modalités des agrégations de données qui permettent l’analyse des territoires ainsi construits par les fusions communales, ainsi que des applications.
+Si les dimensions juridiques [@aubelle2016 ; @lenfant2018 ; @verpeaux2016] ou politiques [@frinault2017 ; @kada2017; @pasquier2017 ; @ville2017] ont été développées dans les travaux récents, la création de ces nouveaux périmètres de collectivités locales pose un certain nombre de problèmes lorsqu’il s’agit de traiter des données statistiques faisant référence aux communes. Il faut en effet procéder à des appariements de données sur des périmètres variables dans le temps, et donc la création de tables de passage. Une analyse plus fine et quantitative du phénomène des communes nouvelles [@bideauAparaitre] a donc nécessité la création d'une base de données spécifique, qui est l'objet de cette contribution.
 
-Nous avons donc élaboré, à partir des données issues de la statistique publique, une base permettant l'analyse des communes nouvelles. Nous verrons que sa construction s'inscrit dans une démarche heuristique, dans le but de mieux appréhender l'objet d'étude que sont les communes nouvelles. Il a fallu, pour cela, non seulement gérer l'identification des entités territoriales à différentes dates mais aussi agréger les données de manière *ad hoc* et cohérente avec l'objet institutionnel ainsi remodelé. Les procédures utilisées pourront aisément être reproduites sur d'autres cas de fusions. En effet, la reconfiguration des territoires est un phénomène qui se retrouve à de multiples échelles, et bien plus largement que dans le cas français [@comiteeuropeensurlademocratielocaleetregionalecdlr2007 ; @vanier2002]. Les évolutions de la carte régionale suite à la loi NOTRe de 20015 a par exemple déjà été étudiée [@dore2021 ; @dumont2018] mais les possibilités d'analyse sont loin d'être épuisées dans le cadre municipal [@auteurAparaitre].
+Les données fournies par l'INSEE (Institut National de la Statistique et des Études Économiques) sont facilement exploitables pour étudier une situation à une année donnée mais rendent malaisée l'étude des regroupements. La base de données qui est présentée dans cet article, ainsi que le code qui y est associé ont pour objectif de permettre un travail d’analyse du phénomène de fusions en communes nouvelles.
 
-Nous présenterons tout d'abord les objectifs généraux de la réalisation de cette base de données en posant les termes du problème de l’appariement, puis les données disponibles, avant de détailler les méthodes mises en œuvre et d'esquisser quelques applications possibles.Le data paper, la base de données, et le code commenté sont diffusés de manière à permettre la reproductibilité de la démarche [^texte].
+Certains outils existent pour gérer l'évolution des codes géographiques officiels (code communal). Le plus pertinent est sans doute le package `COGugaison`, construit pour le langage R [@antunez2017]. Ce dernier propose plusieurs fonctionnalités : tout d'abord, il permet d'identifier le millésime du code officiel géographique utilisé dans une base de donnée et ensuite il propose quelques outils de visualisation des données au cours du temps[^COGugaison]. L'originalité de la démarche que nous proposons est de fournir une méthode d'agrégation des données, quel que soit le type de ces dernières. En détaillant les changements liés à l'évolution des codes géographiques, nous avons pour but de permettre l’analyse des territoires ainsi construits par les fusions communales.
 
-[^texte]:Une version du texte de ce *data paper*, est également publiée format RMarkdown (.Rmd) avec le dépôt de données, de manière à documenter le code nécessaire à la reproduction de la démarche.
+[^COGugaison]: Pour une présentation plus complète du package, cf. https://antuki.github.io/COGugaison/articles/COGugaison.html ainsi qu'un partenariat récent avec l'Observatoire des Territoires https://www.observatoire-des-territoires.gouv.fr/kiosque/2021-article-un-diagnostic-de-cog-en-deux-clics. Précisons également que le package a été publié à partir de 2017, c'est-à-dire après le début de nos travaux sur les communes nouvelles et la réalisation de notre base de données, raison pour laquelle nous ne l'avons pas forcément utilisé dans notre démarche.
 
-<!------RLG :  je tente juste de sécher un peu le texte ---->
+Nous avons donc élaboré, à partir des données issues de la statistique publique, une base permettant l'analyse des communes nouvelles. Nous verrons que sa construction s'inscrit dans une démarche heuristique, dans le but de mieux appréhender l'objet d'étude que sont les communes nouvelles. Il a fallu, pour cela, non seulement gérer l'identification des entités territoriales à différentes dates mais aussi agréger les données de manière *ad hoc* et cohérente avec l'objet institutionnel ainsi remodelé. Les procédures utilisées pourront aisément être reproduites sur d'autres cas de fusions. En effet, la reconfiguration des territoires est un phénomène qui se retrouve à de multiples échelles, et bien plus largement que dans le cas français [@comiteeuropeensurlademocratielocaleetregionalecdlr2007 ; @vanier2002]. Les évolutions de la carte régionale suite à la loi NOTRe de 2015 ont par exemple déjà été étudiées [@dore2021 ; @dumont2018] mais les possibilités d'analyses sont loin d'être épuisées dans le cadre municipal [@bideauAparaitre].
+
+Nous présenterons tout d'abord les objectifs généraux de la réalisation de cette base de données en posant les termes du problème de l’appariement, puis les données disponibles, avant de détailler les méthodes mises en œuvre et d'esquisser quelques applications possibles. Le data paper, la base de données et le code commenté sont diffusés de manière à permettre la reproductibilité de la démarche [^texte].
+
+[^texte]:Une version du texte de ce *data paper*, est publiée au format RMarkdown (.Rmd) avec le dépôt de données, de manière à documenter le code nécessaire à la reproduction de la démarche. Nous tenons à remercier chaleureusement tous ceux qui ont participé à l'élaboration de ce data paper et en particulier Renaud Le Goix ainsi que les membres du comité de lecture de *Cybergéo* pour la qualité de leurs remarques et suggestions.
 
 # 1 - Objectifs généraux
+
 Les communes françaises sont identifiées par l'INSEE via un code communal construit comme unique (variable `CODGEO`), dont l'usage est bien connu. Constitué de cinq chiffres dont les deux premiers (ou trois pour l'outre-mer) reprennent le numéro du département concerné. À un instant *t*, chaque CODGEO ne fait référence qu'à une seule commune, c'est de ce point de vue un identifiant unique.
 
-Ce caractère unique du code communal n'est cependant pas complètement stable dans le temps : outre quelques très rares cas de changements de CODGEO (un exemple typique étant la commune de l'Oudon, dans le Calvados, *cf.* plus bas), lors des fusions, l'INSEE a choisi de donner à la nouvelle entité le code de la commune qui en devient le chef-lieu. Ce procédé, qui permet de ne pas avoir à recréer de nouveaux CODGEO pose un problème épineux si on fusionne des données de différentes années puisque l'appariement des séries statistiques peut être erroné, en raison des changements de périmètres, si on ne vérifie pas conjointement le millésime des données et le millésime des limites des communes.
+Ce caractère unique du code communal n'est cependant pas complètement stable dans le temps : outre quelques très rares cas de changements de CODGEO [^Oudon], lors des fusions, l'INSEE a choisi de donner à la nouvelle entité le code de la commune qui en devient le chef-lieu. Ce procédé, qui permet de ne pas avoir à recréer de nouveaux CODGEO pose un problème épineux si on fusionne des données de différentes années puisque l'appariement des séries statistiques peut être erroné, en raison des changements de périmètres, si on ne vérifie pas conjointement le millésime des données et le millésime des limites des communes.
 
-<!---- incise sur Oudon pas claire ---->
+[^Oudon]: L'exemple le plus typique est le cas de la commune de l'Oudon, qui a changé plusieurs fois de code officiel.
 
 À partir des données INSEE et le fond géographique de référence aux géographies du 1^er^ janvier 2011 (avant toute création de commune nouvelle), il s'agit de structurer la base de données pour qu'elle comporte :
 
-* Les géométries de référence au 1^er^ janvier 2011 et au 1^er^ janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE avec le même niveau de généralisation cartographique. Ces objets sont appelés respectivement `geom2011` et  `geom_new`. 
-* Les géométries des communes qu'on nommera fusionnantes[^fusionnantes], soit avant les fusions, au 1^er^ janvier 2011 (`geomfus2011`) et après les fusions, à la date la plus récente connue (`geomCN_new`). 
-* Des données statistiques contextuelles pour l'ensemble des communes existant en 2011, regroupées dans l'objet `df2011`. Ces données variables couvrent des caractéristiques socio-économiques (emploi, structure par âge, etc.), relatives à des zonages (EPCI d'appartenance, catégories d'aires urbaines), et en particulier permettent de caractériser les fusions communales à l’œuvre (quelles communes, laquelle devient chef-lieu, y a-t-il création de communes déléguées, à quelle date etc).
+* Les géométries de référence au 1^er^ janvier 2011 et au 1^er^ janvier de l'année la plus récente pour laquelle des données ont été publiées par l'INSEE avec le même niveau de généralisation cartographique. Ces objets sont appelés respectivement `geom2011` et  `geom_new`.
+
+* Les géométries des communes qu'on nommera fusionnantes[^fusionnantes], soit avant les fusions, au 1^er^ janvier 2011 (`geomfus2011`) et après les fusions, à la date la plus récente connue (`geomCN_new`).
+
+* Des données statistiques contextuelles pour l'ensemble des communes existant en 2011, regroupées dans l'objet `df2011`. Ces données couvrent des caractéristiques socio-économiques (emploi, structure par âge, etc.), relatives à des zonages (EPCI d'appartenance, catégories d'aires urbaines), et en particulier permettent de caractériser les fusions communales à l’œuvre (quelles communes, laquelle devient chef-lieu, y a-t-il création de communes déléguées, à quelle date etc).
+
 * Ces mêmes données statistiques (donc les plus récentes qui aient été publiées à la géographie administrative de 2011, avant la création de toute commune nouvelle), sont agrégées en fonction de leur nature (stock, ratio, valeurs textuelles) pour constituer l'objet `df_new`, qui reprend la géographie administrative la plus récente (ici 2021).
 
 [^fusionnantes]: Nous désignons ainsi les communes ayant participé à la fusion, c'est-à-dire les communes historiques ; le terme de « commune nouvelle », inscrit dans la loi, désigne la nouvelle entité, après la fusion.
 
 La jointure entre les données et les géométries de référence est évidemment facilitée pour permettre cartographie et analyse spatiale.
 
-![**Figure n°1 : Schéma général de la construction de la base de donnée**](figures/Schema_BdD.png)
-<!---- RG: déplacé la note sur le markdown à l'intro --->
+![**Figure 1 : Schéma général de la construction de la base de données**](figures/Schema_BdD.png)
 
+Il est à noter que le phénomène des communes nouvelles n'a, du moins pour l'instant, pas du tout touché les communes d'outre-mer ni celles de Corse. Par conséquent, du fait des spécificités territoriales et administratives de ces espaces, nous avons choisi de nous concentrer sur les seules communes de l'« Hexagone », Corse exclue.
 
 # 2 - Présentation des sources
-Les sources utilisées pour la construction de données décrivant les communes fusionnées proviennent d’une part de l'IGN (Institut Géographique National) pour les géométries de référence nécessaires (2.1) et l'INSEE pour les données statistiques (2.2) ainsi que celles permettant de documenter les fusions de communes (2.3). Ces sources sont librement accessibles et permettent redistribuer des données sources bien documentées selon des protocoles ouverts compatibles avec les exigences de reproductibilité.
+Les sources utilisées pour la construction de données décrivant les communes fusionnées proviennent d’une part de  l'IGN (Institut Géographique National) pour les géométries de référence nécessaires (2.1) et l'INSEE pour les données statistiques (2.2) ainsi que celles permettant de documenter les fusions de communes (2.3). Ces sources sont librement accessibles et permettent de redistribuer des données sources bien documentées selon des protocoles ouverts compatibles avec les exigences de reproductibilité.
 
 
 ## 2.1 - Les géométries de référence
@@ -92,11 +111,11 @@ L'IGN propose des données multiples, dont un fond géographique à l'échelle d
 
 
 ## 2.2 - Les données contextuelles statistiques : Fichiers sources et indicateurs cibles
-Afin de caractériser les spécificités des communes nouvelles, plusieurs tables statistiques à l'échelon communal sont disponibles. Nous souhaitions pouvoir étudier l'ensemble des communes nouvelles, ce qui impliquait de prendre comme point de départ la géographie administrative au 1^er^ janvier 2011. Or, lorsque l'INSEE publie des données, le millésime annoncé est souvent différent de la géographie administrative utilisée (ces éléments sont alors documentés dans les métadonnées). Ainsi, les tables que nous avons utilisées correspondent au millésime 2009 pour la géographie administrative au 1^er^ janvier 2011.
+Afin de caractériser les spécificités des communes nouvelles, plusieurs tables statistiques à l'échelon communal sont disponibles. Nous souhaitions pouvoir étudier l'ensemble des communes nouvelles, ce qui impliquait de prendre comme point de départ la géographie administrative au 1^er^ janvier 2011. Or, lorsque l'INSEE publie des données, le millésime annoncé est souvent différent de la géographie administrative utilisée (ces éléments sont alors documentés dans les métadonnées). Ainsi, les tables que nous avons utilisées correspondent généralement au millésime 2009 pour la géographie administrative au 1^er^ janvier 2011.
 
-La table suivante résume les indicateurs ciblés pour la collecte de données. Variables de stocks, ils constituent généralement des numérateurs et dénominateurs qui pourront, par la suite, être composés en ratios. 
+Le tableau suivant résume les indicateurs ciblés pour la collecte de données. Variables de stocks, ils constituent des numérateurs et dénominateurs qui seront, par la suite, composés en ratios. 
 
-Ces données sont accessibles sur les sites des institutions concernées à partir du nom du jeu de données présents dans la table ci-dessous (les chemins sont précisés dans les métadonnées, *cf.* fichier meta.xlsx).    
+Ces données sont accessibles sur les sites des institutions concernées à partir des noms des jeux de données présents dans la table ci-dessous (les chemins sont précisés dans les métadonnées, *cf.* fichier meta.xlsx).    
 
 ```{r stat_target, echo = FALSE}
 
@@ -107,7 +126,7 @@ target <- subset(variables, variable_selec == "X")
 
 # knitr::kable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")], row.names = F, digits = 1) # Pour export html
 ft <- flextable(target[,c("INSEE_CODE","DESCRIPTION", "SOURCE", "PRODUCTEUR")])
-ft <- set_caption(ft, caption = "Tableau n°1 : Les indicateurs d'intérêt sélectionnés")
+ft <- set_caption(ft, caption = "Tableau 1 : Les indicateurs d'intérêt sélectionnés")
 ft <- width(ft, width = 1.7)
 ft
 ```
@@ -127,7 +146,7 @@ tab <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "tab_passage"))
 
 # knitr::kable(tab, row.names = F) # Pour export html
 ft <- flextable(tab[, c("INSEE_CODE", "DESCRIPTION", "SOURCE")])
-ft <- set_caption(ft, caption = "Tableau n°2 : Les données à disposition concernant les fusions")
+ft <- set_caption(ft, caption = "Tableau 2 : Les données à disposition concernant les fusions")
 ft <- width(ft, width = 1.7)
 ft
 ```
@@ -138,7 +157,9 @@ ft
 Cette section détaille les étapes nécessaires pour importer, préparer et agréger les données relatives à l’analyse du phénomène des communes nouvelles.
 
 ## 3.1 - Géométries de référence
-La construction des géométries de référence repose sur le fichier géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/telechargement#geofla) (objet `geom2011`). Les arrondissements marseillais, lyonnais et parisiens ont été agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence utilisées ultérieurement. Les communes de Corse ont également été supprimées, étant donné (1) qu'elles ne sont pas concernées par le processus de création de communes nouvelles et (2) que cela permet d'améliorer la résolution et simplicité des représentations cartographiques. Ce fond communal est également agrégé au niveau départemental à des fins de représentation cartographique (`dep`).
+La construction des géométries de référence repose sur le fichier géographique [Geofla®Communes édition 2011 France Métropolitaine](https://geoservices.ign.fr/telechargement#geofla) (objet `geom2011`). Comme cela a été dit, cela limite donc la base aux communes dites métropolitaines, en particulier car le phénomène des communes nouvelles n'a jusqu'à présent pas touché les communes ultra-marines. Les communes de Corse ont été également supprimées, étant donné (1) qu'elles ne sont pas concernées par le processus de création de communes nouvelles et (2) que cela permet d'améliorer la résolution et simplicité des représentations cartographiques. 
+
+Les arrondissements marseillais, lyonnais et parisiens ont été agrégés au niveau communal pour un meilleur appariement avec les données statistiques de référence utilisées ultérieurement. Ce fond communal est également agrégé au niveau départemental à des fins de représentation cartographique (`dep`).
 
 Le code communal servant de référence pour les jointures ultérieures avec les données attributaires est extrait de ces géométries.
 
@@ -183,7 +204,7 @@ df$CODE_DEPT <- as.character(df$CODE_DEPT)
 
 
 ## 3.2 - Données statistiques
-La jointure des indicateurs contenus dans les tables de référence est réalisée avec les codes communaux 2011, ainsi que les indicateurs d’intérêt INSEE définis dans le Tableau n°1 (objet `df2011`).
+La jointure des indicateurs contenus dans les tables de référence est réalisée avec les codes communaux 2011, ainsi que les indicateurs d’intérêt INSEE définis dans le Tableau 1 (objet `df2011`).
 
 ```{r data_import}
 
@@ -277,27 +298,61 @@ df2011[selecV][is.na(df2011[selecV])] <- "NON"
 ## 3.3 - Fusions communales et communes nouvelles
 Afin de créer les informations chronologiques sur les fusions communales, la [table de passage communale](https://www.insee.fr/fr/information/2028028) constitue la source primaire, présentant l’ensemble des mutations qui ont touché des communes en France depuis 2003. Ont également été utilisées les tables mises à disposition par l’INSEE ([un fichier par année depuis 2016](https://www.insee.fr/fr/information/2549968))[^formatdate].
 
-[^formatdate]: Les fichiers Excel fournis par l’INSEE ne sont pas formatées de façon homogène, nécessitant des conversions de format pour les fichiers antérieurs à 2017. Par exemple, les dates sont renseignées au format texte jusqu’à 2017, au format date à partir de 2018. Nous avons préalablement converti les champs date au format texte pour l’ensemble des fichiers. Cela signifie qu’en cas de mise à jour des données ou de modification de l'usage du code par un utilisateur, il faudra de nouveau convertir les dates au format texte au préalable.
+[^formatdate]: Les fichiers Excel fournis par l’INSEE ne sont pas formatés de façon homogène, nécessitant des conversions de format pour les fichiers antérieurs à 2017. Par exemple, les dates sont renseignées au format texte jusqu’à 2017, au format date à partir de 2018. Nous avons préalablement converti les champs date au format texte pour l’ensemble des fichiers. Cela signifie qu’en cas de mise à jour des données ou de modification de l'usage du code par un utilisateur, il faudra de nouveau convertir les dates au format texte au préalable.
 
-Ces informations ont été regroupées au sein d'un seul objet. Si la date d'effet (Date2) était manquante au niveau des données fournies par l'INSEE, on appliquait alors la valeur au 1^er^ janvier de l'année suivante à ce champ, suivant les informations relatives aux données manquantes dans la documentation INSEE.
-<!---- insérer une référence, page / document ici ----->
+Ces informations ont été regroupées au sein d'un seul objet. Si la date d'effet (Date2) était manquante au niveau des données fournies par l'INSEE, on appliquait alors la valeur au 1^er^ janvier de l'année suivante à ce champ (suivant les informations sur les données manquantes dans la documentation des fichiers INSEE disponibles [ici](https://www.insee.fr/fr/information/2549968)).
 
-Cette démarche permettra de compléter aisément le fichier à l’avenir, pour tenir compte des fusions ultérieures : il suffira de rajouter les fichier les plus récents (dans le dossier `data-raw` comme dans le code pour importer ces derniers) :
+Cette démarche permettra de compléter aisément le fichier à l’avenir, pour tenir compte des fusions ultérieures : il suffira de rajouter les fichiers les plus récents (dans le dossier `data-raw` comme dans le code pour importer ces derniers) :
 
-* La nouvelle table concernant les fusions de l'année écoulée (2021 par exemple, donc situation au 1^er^ janvier 2022) ;
+* La nouvelle table concernant les fusions de l'année écoulée (2022 par exemple, donc situation au 1^er^ janvier 2023) ;
 
-* La table des évolutions mises à jour (s'appelant probablement 2003-2022).
+* La table de passage (s'appelant probablement 2003-2023) ;
+
+* La table d'appartenance (s'appelant probablement 2023)[^maj].
+
+[^maj2022]: Depuis quelques années, la table des fusions de l'année précédente est publiée vers le mois de janvier, celle "de passage" 2003-xxxx et celle des "d'appartenance" quelques semaines après.
+
+```{r import_listes_passages_depuis_2003, echo = FALSE}
+
+# Import de la liste des fusions (cf. plus bas pour l'utilisation)
+
+# comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des fusions", skip = 5))
+# comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des fusions", skip = 5))
+comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2022.xlsx", sheet = "Liste des fusions", skip = 5))
+
+
+# Import de la liste des scissions (cf. plus bas pour l'utilisation)
+
+# comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des scissions", skip = 5))
+# comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des scissions", skip = 5))
+comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2022.xlsx", sheet = "Liste des scissions", skip = 5))
+
+
+# Import de la table de passage (cf. plus bas pour l'utilisation)
+
+# modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
+# modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
+modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2022.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
+colnames(modif) <- c("CODGEO_INI", "CODGEO_new", "LIBGEO_new" )
+
+
+# Import de la table d'appartenance de l'année la plus récente (cf. plus bas pour l'utilisation)
+# df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-20.xlsx",  sheet = "COM", skip = 5))
+# df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-21.xlsx",  sheet = "COM", skip = 5))
+df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-22.xlsx",  sheet = "COM", skip = 5))
+
+```
+
 
 
 ### 3.3.1 - Identification des communes fusionnantes
-Nous avons commencé par identifier les communes ayant pris part à une fusion à partir de la table de passage globale fournie par l'INSEE depuis la géométrie de 2003 (cette dernière comporte une page dédiée à ces fusions). Cette table comprend toutes les fusions depuis 2003. Elle comprend donc aussi des fusions de communes qui n'ont pas créé de communes nouvelles, puisque ce statut n'apparaît qu'en 2010 et n'est utilisé pour la première fois qu'en 2012. C'est pour cela qu'il ne faudra pas confondre le champs `FUSION` créé ici et le champs `COM_NOUV`, créé plus tard (ce dernier concerne bien les seules communes nouvelles).
+Nous avons commencé par identifier les communes ayant pris part à une fusion à partir de la table de passage globale fournie par l'INSEE depuis la géométrie de 2003 (cette dernière comporte une page dédiée à ces fusions). Cette table comprend toutes les fusions depuis 2003. Elle comprend donc aussi des fusions de communes qui n'ont pas créé de communes nouvelles, puisque ce statut n'apparaît qu'en 2010 et n'est utilisé pour la première fois qu'en 2012. C'est le sens de la distinction entre le champs `FUSION` créé ici (désignant n'importe quelle fusion de commune) et le champs `COM_NOUV`, créé plus tard, qui concerne bien les seules communes nouvelles.
 
-*Commentaire : Est-ce plus clair ?*
 
 ```{r changes_manip1}
 
-# comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des fusions", skip = 5))
-comFus <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des fusions", skip = 5))
+
+# Pour rappel, comFus est la feuille "Liste des fusions", disponible dans le fichier "table_passage_geo2003-geoxxxx". Elle a été importée plus haut
 
 # Pour éviter les doublons dans la table INSEE
 comFus <- aggregate(x = comFus, by = list(comFus$COM_INI), 
@@ -329,51 +384,44 @@ Certains cas particuliers ont demandé un traitement spécifique :
 
 * On doit également traiter individuellement le cas de la commune de L'Oudon, qui a changé de code communal à plusieurs reprises : issue de la fusion-association de dix communes en 1973, elle avait jusqu'en 1990 le code 14472. Du fait d'un transfert de chef-lieu, le code a été modifié en 14697. Après un nouveau transfert de chef-lieu en  2014,  l'INSEE décide en  2016  de  ré-attribuer  le  code de  14472. Cette commune a ensuite fusionné au 1^er^ janvier 2017 au sein de la commune nouvelle de Saint-Pierre-en-Auge. Pour éviter les problèmes d'associations entre les données, nous avons laissé l'ancien code 14697, qui est celui utilisé dans les données INSEE que nous utilisons (millésime 2011).
 
-
-Enfin, nous distinguons les vagues de fusions en fonction de leur force : une première, concernant très peu de communes, entre le 1^er^ janvier 2011 et le 1^er^ janvier 2015 inclus, conduit à rassembler ces communes. Ensuite, le nombre plus important de fusions conduit à isoler chaque année 2015, 2016, 2017 et 2018. Enfin, un creux assez net nous a conduit à réunir les années 2019 et 2020. Cette périodisation pourra être modifiée en fonction d'évolutions les prochaines années (la poursuite des fusions est probable).
-
-<!---- *Commentaire : Est-ce plus clair ?* ---->
-<!---- RLG : oui ---->
+Pour faciliter la lecture des dynamiques, et sans empêcher néanmoins l'étude par date précise (année, cf. graphique 1 dans la section 4, voire mois et jour), nous distinguons plusieurs vagues de fusions en fonction de leur intensité : une première, concernant 73 communes (se regroupant en 26 communes nouvelles), entre le 1^er^ janvier 2011 et le 1^er^ janvier 2015 inclus, conduit à rassembler ces communes. Ensuite, le nombre plus important de fusions conduit à isoler chaque année 2015, 2016, 2017 et 2018. Enfin, une période de fusions moins nombreuses nous a conduit à réunir les années 2019, 2020 et 2021 (jusqu'au 1er janvier 2022). Cette périodisation pourra être modifiée en fonction d'évolutions les prochaines années (la poursuite des fusions est probable).
 
 ```{r changes_manip2}
 
 # Import tables de référence INSEE
-tmp <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2012_2014.xls", 
-                              sheet = "Communes_nouvelles_2012_2014"))
+tmp <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2012_2014.xls", sheet = "Communes_nouvelles_2012_2014"))
 # Traitement du cas particulier de Bettoncourt-le-Haut et Épizon
 tmp <- subset (tmp, DepComA != "52046")
 
-tmp1 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2015.xls", 
-                              sheet = "Communes nouvelles 2015"))
+tmp1 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2015.xls", sheet = "Communes nouvelles 2015"))
 tmp1$Date2[is.na(tmp1$Date2)] <- "01/01/2016"
 
-tmp2 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2016.xls", 
-                              sheet = "Communes nouvelles 2016"))
+tmp2 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2016.xls", sheet = "Communes nouvelles 2016"))
 tmp2$Date2[is.na(tmp2$Date2)] <- "01/01/2017"
 
 # Traitement du cas particulier de la commune de L'Oudon
 # tmp2$DepComA[tmp2$NomCA == "Oudon (L')"] <- "14697"
 tmp2$DepComA[tmp2$DepComA == "14472"] <- "14697"
 
-tmp3 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2017.xls", 
-                              sheet = "Communes nouvelles 2017"))
+tmp3 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2017.xls", sheet = "Communes nouvelles 2017"))
 tmp3$Date2[is.na(tmp3$Date2)] <- "01/01/2018"
 
-tmp4 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2018.xls", 
-                              sheet = "Communes_nouvelles_2018"))
+tmp4 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2018.xls", sheet = "Communes_nouvelles_2018"))
 tmp4$Date2[is.na(tmp4$Date2)] <- "01/01/2019"
 
-tmp5 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2019.xls", 
-                              sheet = "Communes_nouvelles_2019"))
+tmp5 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2019.xls", sheet = "Communes_nouvelles_2019"))
 
-tmp6 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2020.xlsx", 
-                              sheet = "Communes_nouvelles_2020"))
+tmp6 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2020.xlsx", sheet = "Communes_nouvelles_2020"))
 tmp6$Date1 <- format(as.Date(tmp6$Date1, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
 tmp6$Date2 <- format(as.Date(tmp6$Date2, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
 
+tmp7 <- data.frame(read_excel("data-raw/communes_nouvelles/communes_nouvelles_2021.xlsx", sheet = "Communes_nouvelles_2021"))
+tmp7$Date1 <- format(as.Date(tmp6$Date1, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
+tmp7$Date2 <- format(as.Date(tmp6$Date2, format = "%Y-%m-%d"),"%d/%m/%Y") # Pour mettre la date au même format que les fichiers précédents
+
 # Regroupement des colonnes identiques des différents dataframe
 comNew <- data.frame()
-list_df <- list(tmp, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6)
+list_df <- list(tmp, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7)
 
 for(item in list_df){     
   items <- item[, names(tmp)] # La référence sont les noms de colonne du premier fichier
@@ -386,12 +434,12 @@ comNew <- subset(comNew, comNew$DepComN != "NA")
 # test <- dplyr::anti_join(comNew, comNew2) # Si on souhaite identifier ces erreurs
 
 # Reformatage de l'année de fusion
-comNew$FusAn <- as.Date(comNew$Date2, tryFormats = "%d/%m/%Y")
+comNew$FusDate <- as.Date(comNew$Date2, tryFormats = "%d/%m/%Y")
 
 # Découpage en phases temporelles de fusion
-comNew$FusPhas <- cut(comNew$FusAn, 
+comNew$FusPhas <- cut(comNew$FusDate, 
                         breaks = as.Date(c("2011-1-1", "2015-1-2", "2016-1-2",
-                                           "2017-1-2","2018-1-2", "2019-1-2","2021-1-2")), 
+                                           "2017-1-2","2018-1-2", "2019-1-2","2022-1-2")), 
                         labels = c("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"))
 
 # Pour fusions successives et à code DepComA identique, ne conserver que l'élément le plus ancien
@@ -399,12 +447,12 @@ comNew <- aggregate(x = comNew, by = list(comNew$DepComA),  # on évite les doub
                    FUN = head, 1) # On ne garde que le premier élément (comNew trié par ordre chronologique)
 
 # Prise en compte du dernier nom de commune nouvelle
-comNew <- comNew[order(comNew$FusAn, decreasing = TRUE),]
+comNew <- comNew[order(comNew$FusDate, decreasing = TRUE),]
 comNew$NomCN <- ave(comNew$NomCN, comNew$DepComN, FUN = function(x) x[1])
 comNew <- comNew[,c(2:length(comNew))] # Ne garder que les colonnes utiles
 
 # Jointure avec le fichier d'origine
-df2011 <- merge(df2011, comNew[,c("DepComA","ChefLieu","ComDLG", "FusAn","FusPhas")],
+df2011 <- merge(df2011, comNew[,c("DepComA","ChefLieu","ComDLG", "FusDate","FusPhas")],
                 by.x = "CODGEO", by.y = "DepComA", all.x = TRUE, all.y = TRUE)
 
 # Identification communes nouvelles
@@ -424,17 +472,13 @@ DiffcomFuscomNew <- dplyr::anti_join(comFus, comNew, by = c("COM_INI" = "DepComA
 ### 3.3.3 - Gestion des scissions communales
 Dans la table de passage, des scissions communales étaient mentionnées. L'étape présentée ici a permis que ces dernières ne soient pas considérées comme des fusions ou des communes nouvelles.
 
-Il faut, là encore, noter un cas particulier : en 2012, la commune de Robert-Magny-Laneuville-à-Rémy (52427) se scinde en Robert-Magny (52427) et Laneuville-à-Rémy (52266). Au 1^er^ janvier 2016, Robert-Magny fusionne avec Montier-en-Der (52331) pour former La Porte du Der (52331). Comme on ne dispose pas des données 2011 pour Laneuville-à-Rémy, on préfère ignorer cette scission et cette dernière commune n'apparaîtra donc pas dans notre base de données (source : [fiche spécifique de l'INSEE](https://www.insee.fr/fr/metadonnees/cog/commune/COM52427-robert-magny)).
+Il faut, là encore, noter un cas particulier : en 2012, la commune de Robert-Magny-Laneuville-à-Rémy (52427) se scinde en Robert-Magny (52427) et Laneuville-à-Rémy (52266). Au 1^er^ janvier 2016, Robert-Magny fusionne avec Montier-en-Der (52331) pour former La Porte du Der (52331). Comme on ne dispose pas des données de recensement en 2011 pour Laneuville-à-Rémy, on préfère ignorer cette scission et cette dernière commune n'apparaîtra donc pas dans notre base de données (source : [fiche spécifique de l'INSEE](https://www.insee.fr/fr/metadonnees/cog/commune/COM52427-robert-magny)).
 
-<!-- *Commentaire : Est-ce plus clair sur la gestion de la fusion ?* -->
-<!---- RLG : oui. Peut être dire en note que cette sission fera l'objet éventuellement d'une mise à jour ultérierue des doncuments ? ---->
 
 ```{r changes_manip3}
 
-# Tout ce qui est scission n'est pas considéré comme commune nouvelle ou fusion
-# comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", sheet = "Liste des scissions", skip = 5))
-comSci <- data.frame(read_excel("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", sheet = "Liste des scissions", skip = 5))
-
+# Objectif : que tout ce qui est scission ne soit pas considéré comme commune nouvelle ou fusion
+# Pour rappel, comSci est la feuille "Liste des scissions", disponible dans le fichier "table_passage_geo2003-geoxxxx". Elle a été importée plus haut
 
 # Cas particulier de la commune de Robert-Magny-Laneuville-à-Rémy (52427).
 comSci <- subset(comSci, COM_INI != "52427")
@@ -444,10 +488,10 @@ df2011$FUSION [df2011$CODGEO %in% comSci] <- "NON"
 df2011$COM_NOUV [df2011$CODGEO %in% comSci] <- "NON"
 df2011$ChefLieu [df2011$CODGEO %in% comSci] <- NA
 df2011$ComDLG [df2011$CODGEO %in% comSci] <- NA
-df2011$FusAn [df2011$CODGEO %in% comSci] <- NA
+df2011$FusDate [df2011$CODGEO %in% comSci] <- NA
 df2011$FusPhas [df2011$CODGEO %in% comSci] <- NA
 
-df2011$FusAn <- as.character(df2011$FusAn)
+df2011$FusDate <- as.character(df2011$FusDate)
 
 ```
 
@@ -457,8 +501,6 @@ df2011$FusAn <- as.character(df2011$FusAn)
 Une étape majeure a ensuite été l'agrégation des indicateurs, pour les communes ayant fusionné. Cette agrégation, souvent peu complexe (pour les statistiques de stocks, il s'agit de banales additions des variables décrivant les communes fusionnantes), présente plus de difficultés pour le traitement des ratios.
 Pour ce faire, une fonction spécifique, `comix`, a été créée. Elle permet d'agréger les données selon leurs spécificités statistiques. Les données textuelles, si elles ne sont pas identiques, sont concaténées, les variables de stock sont additionnées, les variables de ratio sont pondérées en fonction du dénominateur adapé (indiqué dans les métadonnées, pouvant être la population, le nombre d'actifs, le nombre de foyers etc).
 
-<!-- *Commentaire : Est-ce plus clair sur la gestion des variables ?* -->
-<!-- RLG : il y a juste un truc pas clair: c'est que tu dis ligne 97 que c'est par la suite que cela pourra être composé de ratios. semble dire que pas dans cette base mais dans l'usage qui peut en être fait -->
 
 ```{r comix, echo = FALSE}
 
@@ -590,9 +632,9 @@ comix <- function(x, xid, app, app.init, app.target, var, var.type, w = NULL, na
 Nous avons, au préalable, importé les zonages de référence pour l'année la plus récente (2021), ce qui permet d'avoir les informations les plus à jour possible (cas de quelques communes ayant changé de département avec les fusions). Ce sont ces zonages qui constituent le matériau de base de l'objet `df_new`.
 
 ```{r data_ref_comnew}
-# Import de la table de zonage de l'année la plus récente
-# df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-20.xlsx",  sheet = "COM", skip = 5))
-df_new <- data.frame(read_excel("data-raw/stats_insee/table-appartenance-geo-communes-21.xlsx",  sheet = "COM", skip = 5))
+
+
+# Pour rappel, df_new est la table d'appartenance à l'année la plus récente. Elle a été importée plus haut.
 
 df_new <- df_new[,c("CODGEO","LIBGEO","DEP","REG")] # NB : certains éléments ne sont plus dans les données à partir de 2021 : "CATAEU2010","AU2010", "EPCI"... Ont donc été supprimées. Il faudra songer à intégrer le nouveau zonage lorsqu'il sera disponible. Ci-dessous, commenté, le code qui servait à l'intégration des données jusqu'en 2020
 
@@ -619,24 +661,20 @@ colnames(df_new) <- c("CODGEO_new","LIBGEO_new","CODE_DEPT_new", "REG_new")
 ```
 
 
-Nous avons ensuite utilisé la fonction `comix` pour agréger les données d'intérêt en fonction de la géographie la plus récente (ici, au 1^er^ janvier 2021). La table `df_new` ainsi créée nous permet donc, pour chaque variable choisie (stock et ratio), de disposer des données pour les entités à la géométrie la plus récente.
-
-<!-- *Commentaire : C'est nettement plus condensé que la première version. Peut-être trop ? * -->
-<!-- En fait, je crains que ce soit le genre de phrase qui ssans le code soit peu lisible -->
-
 ```{r data_aggreg}
 
+# Nous utilisons ici la fonction `comix` pour agréger les données d'intérêt en fonction de la géographie la plus récente (ici, au 1^er^ janvier 2021). La table `df_new` ainsi créée nous permet donc, pour chaque variable choisie (stock et ratio), de disposer des données pour les entités à la géométrie la plus récente.
+
+
 # Agrégation des données de 2011 vers l'année la plus récente (stock + texte)
-# Import de la table de passage 
-# modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2020.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
-modif <- as.data.frame(read_xlsx("data-raw/communes_nouvelles/table_passage_geo2003_geo2021.xlsx", col_types = "text", sheet = "Table de passage", skip = 5))
-colnames(modif) <- c("CODGEO_INI", "CODGEO_new", "LIBGEO_new" )
+# Import de la table de passage : "modif"
+# Pour rappel, modif est la feuille "Table de passage", disponible dans le fichier "table_passage_geo2003-geoxxxx". Elle a été importée plus haut
 
 # Agrégation
 # Attention à bien indiquer la nature pour chaque variable visée 
 tmp <- comix(x = df2011, xid = "CODGEO", app = modif,
                 app.init = "CODGEO_INI", app.target = "CODGEO_new", 
-                var = c(target$recoding, "FUSION", "FusAn", "FusPhas", "COM_NOUV"),
+                var = c(target$recoding, "FUSION", "FusDate", "FusPhas", "COM_NOUV"),
                 var.type = c(target$type_variable, rep("text",4)))
 
 
@@ -650,8 +688,8 @@ df_new <- merge(df_new, tmp, by.x = "CODGEO_new", by.y = "CODGEO_new",
                 all.x = TRUE)
 
 # Suppression des territoires corses, des DOM et des communes associées (pas de geom)
-out <- c("94","01","02","03","04","06")
-df_new <- df_new[!df_new$REG %in% out,] 
+depsuppr <- c("94","01","02","03","04","06")
+df_new <- df_new[!df_new$REG %in% depsuppr,] 
 df_new <- df_new[!is.na(df_new$CODGEO),]
 
 
@@ -672,21 +710,30 @@ df2011$CATAEU2010 <- as.factor(df2011$CATAEU2010)
 
 ```{r ratios}
 
-ratio <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ratios"))
+ratio_tt <- as.data.frame(read_excel("data-raw/meta.xlsx", sheet = "ratios"))
+# Comme pour les variables, seuls certains ratios sont sélectionnés
+ratio <- subset(ratio_tt, variable_selec == "X")
 
 # Compilation des ratios pour les communes 2011
 for (i in 1:nrow(ratio)){
-  df2011[paste0(ratio[i,"CODE"])] <- df2011[[ratio[i, "Numerator_Code"]]] / 
-    df2011[[ratio[i, "Denominator_Code"]]] * ratio[i,"Coeff"]
+  df2011[paste0(ratio[i,"CODE"])] <- (df2011[[ratio[i, "Numerator_Code"]]] / 
+    df2011[[ratio[i, "Denominator_Code"]]]) * ratio[i,"Coeff"]
 }
 
 # Compilation des ratios pour les communes à la dernière géométrie connue
 for (i in 1:nrow(ratio)){
-  df_new[paste0(ratio[i,"CODE"])] <- df_new[[ratio[i, "Numerator_Code"]]] / 
-    df_new[[ratio[i, "Denominator_Code"]]] * ratio[i,"Coeff"]
+  df_new[paste0(ratio[i,"CODE"])] <- (df_new[[ratio[i, "Numerator_Code"]]] / 
+    df_new[[ratio[i, "Denominator_Code"]]]) * ratio[i,"Coeff"]
 }
 
 ```
+
+```{r date_fusion_ini}
+# On précise ici la date de la fusion du chef-lieu, qui est en général la date de la première fusion dans le cas de fusions successives
+df_new <- merge(df_new, df2011[, c("CODGEO", "FusDate", "FusPhas")], by.x = "CODGEO_new", by.y = "CODGEO", all.x = TRUE, suffixes = c("", "_ChefLieu"))
+
+```
+
 
 
 ## 3.5 - Résumé des indicateurs disponibles par fichier de données de référence
@@ -695,11 +742,7 @@ Deux jeux de données ont ainsi été produits :
 
 * Le premier, `df2011`, contient l'ensemble des données communales françaises désirées en fonction de la géographie administrative au 1^er^ janvier 2011.
 
-* Le second, `df_new`, contient les informations en fonction de la géographie administrative du 1^er^ janvier de la dernière année pour laquelle les données ont été publiées par l'INSEE. Les données 2011 ont été regroupées en fonction du fichier des fusions délivré par l'INSEE et la fonction `comix`. Le tableau XXXX détaille les codes respectifs que ces fichiers contiennent, ainsi qu'un descriptif de leur contenu.
-
-<!-- Voici les codes respectifs que ces fichiers contiennent, ainsi qu'un descriptif de leur contenu.  -->
-
-
+* Le second, `df_new`, contient les informations en fonction de la géographie administrative du 1^er^ janvier de la dernière année pour laquelle les données ont été publiées par l'INSEE. Les données 2011 ont été regroupées en fonction du fichier des fusions délivré par l'INSEE, à l'aide de la fonction `comix` créée plus haut. Le tableau 3 détaille les codes respectifs que ces fichiers contiennent, ainsi qu'un descriptif de leur contenu.
 
 ```{r meta_df2011, echo = FALSE}
 
@@ -712,31 +755,32 @@ zau <- c("Petit pôle et couronne de petits pôles (catégories 221 et 222 du zo
          "Rural profond + petits pôles et couronnes (catégories 221, 222, 300 et 400 du zonage en aires urbaines (OUI/NON)",
          "Périurbain de grands pôles (catégories 112 et 120 du zonage en aires urbaines (OUI/NON)",
          "Typologie regroupée basées sur les aires urbaines : GrdAirUrb (catégories 111, 112, 120), AirUrb (211, 212, 221, 222) et Autres (300, 400)")
-change <- c("Code INSEE, découpage géographique le plus récent",
-            "Nom de la commune, découpage géographique le plus récent",
+change <- c(
             "Est-ce que la commune a fusionné entre 2011 et aujourd'hui (OUI/NON)",
             "Commune nouvelle : Statut de commune chef-lieu (O=OUI, N=NON)",
             "Commune nouvelle : Statut de Commune déléguée (O=OUI, N=NON)",
             "Date d'effet de la création de commune nouvelle",
             "Phase dans le processus de fusion (phase 1 = 2011-2015, 2 = 2015-2016, 3 = 2016-2017, 4 = 2017-2018, 5 = 2018-2020, 6 = 2020-2021",
-            "Est que la commune est devenue une commune nouvelle (OUI/NON)")
+            "Est que la commune est devenue une commune nouvelle (OUI/NON)",
+            "Code INSEE, découpage géographique le plus récent",
+            "Nom de la commune, découpage géographique le plus récent")
 
 rates <- ratio$DESCRIPTION
 
 label <- c(nums, zau, change, rates)
 tab <- data.frame(codes, label)
-
+colnames(tab) <- c("Codes", "Description")
 # knitr::kable(tab, row.names = F) # Pour export html
 ft <- flextable(tab)
+ft <- set_caption(ft, caption = "Tableau 3 : Les variables présentes dans la base de données")
 ft <- width(ft, width = 4)
 ft
 ```
 
 
-Les variables présentes dans`df_new` sont identifiées de la même manière que dans `df2011`. Les seules différences concernent les identifiants des communes (on rajoute "_new" pour distinguer les CODGEO et les noms des communes à la nouvelle géométrie) et la suppression de champs n'ayant de sens que pour les communes fusionnantes, qui n'existent donc pas [^notevariablesfusionnantes].
+Les variables présentes dans `df_new` sont identifiées de la même manière que dans `df2011`. Les seules différences concernent les identifiants des communes (on rajoute "_new" pour distinguer les CODGEO et les noms des communes à la nouvelle géométrie) et la suppression de champs n'ayant de sens que pour les communes fusionnantes, qui n'existent donc pas [^notevariablesfusionnantes].
 
-[^notevariablesfusionnantes]: Les variables dédiées aux chefs-lieux et aux communes déléguées (codes ChefLieu et ComDLG) ne sont pas inclues dans le jeu de données aux géographies récentes, car non adaptées à ce niveau de granularité géographique.
-*Commentaire : § modifié*
+[^notevariablesfusionnantes]: Les variables dédiées aux chefs-lieux et aux communes déléguées (codes `ChefLieu` et `ComDLG`) ne sont pas inclues dans le jeu de données aux géographies récentes, car non adaptées à ce niveau de granularité géographique.
 
 Les jeux de données de référence ont finalement été exportés dans le dossier `data` au format RData. 
 
@@ -776,7 +820,7 @@ geomCN_new <- geomCN_new[,c("CODGEO_new")]
 
 ```
 
-Cinq couches géographiques ont été exportées dans le fichier `geom.gpkg` (au sein du dossier "data", cf. Figure n°1) :
+Cinq couches géographiques ont été exportées dans le fichier `geom.gpkg` (au sein du dossier "data", *cf.* Figure 1) :
 
 * Les géométries communales au 1^er^ janvier 2011 (`geom2011`).
 
@@ -802,37 +846,42 @@ st_write(obj = dep, dsn = "data/geom.gpkg", layer = "dep",
 
 
 # 4 - Traitements possibles
-Nous proposons ici quelques exemples de traitements rendus possibles par la base de donnée ainsi constituée.
+Nous proposons ici quelques exemples de traitements rendus possibles par la base de données ainsi constituée.
 
 ## 4.1 - La création des communes nouvelles au cours du temps
-Un premier type d’analyse consiste à produire une vision chronologique des créations de communes nouvelles. On propose ici une visualisation du nombre de communes fusionnantes ayant rejoint une commune nouvelle pour une année donnée (on a plusieurs cas de fusions successives). Le graphique n°1 analyse le nombre de communes fusionnantes en fonction de l'année de la fusion (dans ce graphique, comme dans les tables de l'INSEE, les fusions effectives au 1^er^ janvier d'une année *n* sont notées à l'année *n-1*). Il permet de relever les différentes périodes identifiées en six phases (cf. plus haut). Cette répartition peut être cartographiée (**Figure XXXX**), en fonction de ces phases. Des développements possibles peuvent consister à comparer les données de manière diachronique.
+Un premier type d’analyse consiste à produire une vision chronologique des créations de communes nouvelles. On propose ici une visualisation du nombre de communes fusionnantes ayant rejoint une commune nouvelle pour une année donnée (on a plusieurs cas de fusions successives). Le graphique 1 analyse le nombre de communes fusionnantes en fonction de l'année de la fusion (dans ce graphique, comme dans les tables de l'INSEE, les fusions effectives au 1^er^ janvier d'une année *n* sont notées à l'année *n-1*). Il permet de relever les différentes périodes identifiées en six phases (*cf.* plus haut). Cette répartition peut être cartographiée (Figure 2), en fonction de ces phases. Des développements possibles peuvent consister à comparer les données de manière diachronique.
 
 ```{r traitement_graph_annee}
 
 datafus2011 <- subset(df2011, COM_NOUV == "OUI") # Désigne les données concernant les communes ayant participé à la création d'une commune nouvelle, appelées ici communes fusionnantes
 
-datafus2011$FusAn <- as.Date(datafus2011$FusAn, tryFormats = "%Y-%m-%d")
+datafus2011$FusDate <- as.Date(datafus2011$FusDate, tryFormats = "%Y-%m-%d")
 
-datafus2011$FusAnnee <- cut(datafus2011$FusAn, 
+datafus2011$FusDatenee <- cut(datafus2011$FusDate, 
                         breaks = as.Date(c("2011-1-1", "2012-1-2", "2013-1-2", "2014-1-2", "2015-1-2", "2016-1-2",
                                            "2017-1-2","2018-1-2", "2019-1-2", "2020-1-2", "2021-1-2")), 
                         labels = c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020")) # NB : On intègre le 1er janvier d'une année n à l'année précédente
 
-time_serie <- data.frame(table(datafus2011$FusAnnee))
+time_serie <- data.frame(table(datafus2011$FusDatenee))
 
-barplot(time_serie$Freq,  xlab = " ", ylab = "Nombre de communes fusionnantes", main = "Graphique n°1 :\nNombre de communes fusionnantes\nen fonction de l'année de fusion", ylim = c(0, 2000), names.arg = time_serie$Var1)
+barplot(time_serie$Freq,  xlab = " ", ylab = "Nombre de communes fusionnantes",
+        main = " ",# "Graphique 1 :\nNombre de communes fusionnantes\nen fonction de l'année de fusion",
+        ylim = c(0, 2000), names.arg = time_serie$Var1)
 grid(nx=0, ny = 10, col="gray", lwd=2)
 
 ```
 
-
-
+**Graphique 1 : Nombre de communes fusionnantes en fonction de l'année de fusion**
 
 ```{r traitement_carte_comm_annee}
 
 geomfus2011 <- merge(geomfus2011, datafus2011, by = "CODGEO") # jointure données/géométries
 
 col <- c("#a50026","#d73027","#f46d43","#fdae61","#fee090", "#ffffbf") # Échelle rouge vers le plus clair
+
+
+svg("figures/Communes fusionnantes (2012-2021) par phases.svg")
+
 plot(st_geometry(dep), border = "#1A1A19", col = "white", lwd = 1)
 typoLayer(x = geomfus2011, var = "FusPhas",  
           col=col,
@@ -844,19 +893,20 @@ typoLayer(x = geomfus2011, var = "FusPhas",
           legend.values.order = c("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"),
           add = T)
 
-layoutLayer(title = "Communes fusionnantes (2012-2021) par phases",
-            author = "Auteur anonymisé",
+layoutLayer(title = " ", # "Figure 2 : Communes fusionnantes (2012-2021) par phases",
+            author = "G. Bideau et R. Ysebaert",
             tabtitle = TRUE, frame = FALSE, col = "white", coltitle = "black",
             sources = "Sources : INSEE, IGN, 2021")
-
+dev.off()
 ```
 
+![**Figure 2 : Communes fusionnantes (2012-2021) par phases**](figures/Communes fusionnantes (2012-2021) par phases.svg)
 
 
 ## 4.2 - Communes fusionnantes et zonage en aire urbaine
 À partir du zonage en aire urbaine INSEE de chaque commune (CATAEU2010), il est également possible d’analyser globalement le profil des communes fusionnantes en le comparant à celui des communes inchangées.
 
-Les modalités agrégées correspondent aux définitions des zonages en aire urbaines, pour référence : 
+Les modalités agrégées correspondent aux définitions des zonages en aire urbaines sont, pour référence : 
 
 * 111 : Commune appartenant à un grand pôle (10 000 emplois ou plus)
 * 112 : Commune appartenant à la couronne d'un grand pôle
@@ -867,9 +917,6 @@ Les modalités agrégées correspondent aux définitions des zonages en aire urb
 * 222 : Commune appartenant à la couronne d'un petit pôle
 * 300 : Autre commune multipolarisée
 * 400 : Commune isolée hors influence des pôles
-
-<!-- *Commentaire : En mettant dans le graphique j'ai l'impression que ça alourdit davantage la lecture que comme cela...* -->
-<!-- *OK.* -->
 
 
 ```{r traitement_graph_ZAU}
@@ -894,7 +941,7 @@ barplot(prop,
         xlab = "Catégories d'aire urbaine",
         ylab = "Part du total des communes (%)",
         # names.arg = c("Commune appartenant à un grand pôle", "Commune appartenant à la couronne d'un grand pôle", " Commune multipolarisée des grandes aires urbaines", "Commune appartenant à un moyen pôle", " Commune appartenant à la couronne d'un moyen pôle", "Commune appartenant à un petit pôle", "Commune appartenant à la couronne d'un petit pôle", "Autre commune multipolarisée", "Commune isolée hors influence des pôles"), 
-        main = "Graphique n°2 :\nRépartition des communes fusionnantes ou non\nen fonction des catégories d'aire urbaine",
+        main = " ",# "Graphique 2 :\nRépartition des communes fusionnantes ou non\nen fonction des catégories d'aire urbaine",
         las = 2,
         border = NA,
         col=c("#ff87a9","#f7d358"),
@@ -906,20 +953,16 @@ legend(x="topright", legend = rownames(prop) , cex=0.8,
 tab.chi2 <- chisq.test(ZAU)
 ```
 
+**Graphique 2 : Répartition des communes fusionnantes ou non en fonction des catégories d'aire urbaine**
+
 Ainsi, les profils des communes fusionnantes et des communes inchangées sont relativement proches. Les écarts les plus importants se situent aux extrêmes. Les communes fusionnantes sont marquées par une plus faible représentation des communes centres de grands ou moyens pôles dans les communes nouvelles et une sur-représentation des communes multipolarisées ou hors influence des pôles. Un test du Chi² permet de rejeter l’hypothèse d’indépendance des deux variables (X² = `r tab.chi2$statistic`, df = `r tab.chi2$parameter` et p-value = `r tab.chi2$p.value`).
 
 
 D'autres traitements sont évidemment possibles avec la base de données réalisée, comme par exemple l'élaboration d'une typologie à l'aide d'une Classification par Ascendance Hiérarchique (CAH), qui a été réalisée pour les communes créées entre 2012 et le 1^er^ janvier 2020 [@auteurAparaitre].
 
 ## 4.3 - La répartition des communes fusionnantes par départements
-À partir de ces données, il est également possible d'observer la répartition des communes fusionnantes en fonction de la trame départementale, en comparant cette répartition avec des données concernant la taille des communes.
 
-<!-- *Commentaire : À vrai dire, je trouve que la question de la taille est en fait pas si évidente que cela. L'idée était aussi de proposer une cartographie un peu plus poussée que la seule localisation. À quoi pensais-tu pour le potentiel financier ? À un graphique comme pour le ZAU ?* -->
-
-
-Après avoir calculé des variables concernant la taille des communes dans chaque département, on peut ainsi cartographier la répartition des communes ayant participé à la création d'une commune nouvelle vis-à-vis de la répartition des communes de moins de 1000 habitants. Cela permet d'observer que ces deux phénomènes sont en fait rarement pleinement liés : les départements de forts taux de communes de moins de 1000 habitants ne sont ainsi pas forcément ceux où des communes ont fusionné en grand nombre.
-
-<!-- En effet, cette histoire de taille n'est pas la plus convaincante -->
+La question de la taille des communes est un enjeu majeur de l'analyse des communes nouvelles. En effet, cette dernière paraît être un facteur explicatif assez intuitif. Or une carte avec une trame départemental permet de très rapidement observer une fréquente déconnexion entre les territoires accueillant de très nombreuses petites communes et les espaces ayant connu de nombreuses créations de communes nouvelles. Les départements de forts taux de communes de moins de 1000 habitants ne sont ainsi pas forcément ceux où des communes ont fusionné en grand nombre. Cela signifie que le mouvement des communes nouvelles ne règle pas du tout la question des petites communes dans nombre de départements, alors que c'est un des objectifs avancés par la loi.
 
 
 ```{r Variables_departements, eval = TRUE, echo = FALSE}
@@ -1061,23 +1104,21 @@ propSymbolsLayer(spdf = ShpDep, # Ou à la place on peut utiliser "spdf = Commun
                  add = TRUE)
 layoutLayer(title = "Communes nouvelles et petites communes par départements (2012-2021)", coltitle = "black",
             sources = "                                 Source : INSEE, IGN, 2021", scale = NULL,
-            author = "                                  Auteur : Auteur anonymisé", frame ="", col = NA, postitle = "center")
+            author = "                                  Auteur : G. Bideau et R. Ysebaert", frame ="", col = NA, postitle = "center")
 dev.off()
 
 ```
 
-![**Communes nouvelles et petites communes (2012-2021)**](figures/Communes nouvelles et petites communes (2012-2021).svg)
+![**Figure 3 : Communes nouvelles et petites communes (2012-2021)**](figures/Communes nouvelles et petites communes (2012-2021).svg)
 
 
 # Conclusion
-La base de données *DAC (Données Agrégées des Communes) 2011-2021* permet une analyse approfondie du phénomène des communes nouvelles. Qu'il s'agisse de décrire les entités y ayant participé (les communes fusionnantes), les nouvelles entités créées (les communes nouvelles) ou les transformations qu'impliquent la fusion, de nombreuses études sont possibles.
+La base de données *DAC (Données Agrégées des Communes) 2011-2021* permet une analyse approfondie du phénomène des communes nouvelles. Qu'il s'agisse de décrire les entités y ayant participé (les communes fusionnantes), les nouvelles entités créées (les communes nouvelles) ou les transformations qu'impliquent la fusion, de nombreuses études sont possibles, au-delà des premières approches qui ont pu être proposées à l'aide de cette base [@bideau2019 ; @bideau2022 ; @bideauAparaitre].
 
-<!-- *Commentaire : Proposition de nom ??* -->
-<!-- *rlg : je ne comprends pas la question -->
 
 Au-delà de la question des communes nouvelles, les regroupements d'entités géographiques se retrouvent à de multiples échelles. L’analyse de ces derniers pourra être facilitée par les éléments de reproductibilité et d’intégration de nouvelles données annuelles, en fonction des évolutions des fusions. *A posteriori* ou *a priori*, les décisions politiques gagneront toujours à une évaluation ouverte et transparente de leurs conséquences.
 
-<!-- *rlg : juste pour essayer -->
+
 
 
 # Bibliographie
